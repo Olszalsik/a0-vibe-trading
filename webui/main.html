@@ -1,0 +1,215 @@
+<html>
+<head>
+  <title>Vibe-Trading Panel</title>
+  <style>
+    .vt-panel { padding: 14px 16px; font-size: 12px; line-height: 1.5;
+                color: var(--vt-fg, #e6e6e6);
+                background: var(--vt-bg, #14171c); }
+    .vt-panel h2 { font-size: 14px; margin: 0 0 6px 0;
+                    color: var(--vibe-trading-accent, #4f8cff); }
+    .vt-panel h3 { font-size: 12px; margin: 14px 0 6px 0;
+                    text-transform: uppercase; opacity: 0.7; letter-spacing: 0.04em; }
+    .vt-panel .vt-row { display: flex; justify-content: space-between; gap: 8px;
+                         padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .vt-panel .vt-row:last-child { border-bottom: none; }
+    .vt-panel .vt-key { opacity: 0.7; }
+    .vt-panel .vt-val { font-family: ui-monospace, monospace; text-align: right; }
+    .vt-panel .vt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .vt-panel .vt-card { padding: 10px 12px; border: 1px solid rgba(255,255,255,0.08);
+                          border-radius: 6px; background: rgba(255,255,255,0.02); }
+    .vt-panel .vt-card strong { color: var(--vibe-trading-accent, #4f8cff); }
+    .vt-panel .vt-tool-pill { display: inline-block; padding: 2px 8px; margin: 2px 4px 2px 0;
+                                border-radius: 3px; font-size: 10.5px; font-family: ui-monospace, monospace;
+                                background: var(--vibe-trading-accent-soft, rgba(79,140,255,0.12));
+                                color: var(--vibe-trading-accent, #4f8cff); }
+    .vt-panel .vt-tool-pill:hover { filter: brightness(1.2); cursor: pointer; }
+    .vt-panel .vt-status-dot { display: inline-block; width: 8px; height: 8px;
+                                border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+    .vt-panel .vt-status-ok { background: #6dd58c; }
+    .vt-panel .vt-status-err { background: #ff6b6b; }
+    .vt-panel .vt-status-warn { background: #ffb84d; }
+    .vt-panel .vt-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .vt-panel .vt-btn { background: var(--vibe-trading-accent, #4f8cff); color: white;
+                         border: none; padding: 6px 12px; border-radius: 4px;
+                         font-size: 12px; cursor: pointer; }
+    .vt-panel .vt-btn:hover { filter: brightness(1.1); }
+    .vt-panel .vt-btn-secondary { background: transparent; color: var(--vibe-trading-accent, #4f8cff);
+                                   border: 1px solid var(--vibe-trading-accent, #4f8cff); }
+    .vt-panel .vt-search { width: 100%; padding: 5px 8px; border-radius: 4px;
+                            background: rgba(255,255,255,0.05); color: inherit;
+                            border: 1px solid rgba(255,255,255,0.1); font-size: 12px;
+                            margin-bottom: 8px; }
+    .vt-panel .vt-zoo-pick { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
+    .vt-panel .vt-zoo-pick button { background: transparent; color: inherit;
+                                    border: 1px solid rgba(255,255,255,0.1);
+                                    padding: 3px 8px; border-radius: 3px; font-size: 11px;
+                                    cursor: pointer; }
+    .vt-panel .vt-zoo-pick button.active {
+      background: var(--vibe-trading-accent-soft, rgba(79,140,255,0.2));
+      color: var(--vibe-trading-accent, #4f8cff);
+      border-color: var(--vibe-trading-accent, #4f8cff);
+    }
+    .vt-panel .vt-empty { opacity: 0.6; font-style: italic; }
+  </style>
+</head>
+<body>
+<div class="vt-panel" x-data="vibeTradingPanel()" x-init="init()">
+
+  <h2>📈 Vibe-Trading</h2>
+
+  <div class="vt-card">
+    <div>
+      <span class="vt-status-dot" :class="statusClass"></span>
+      <span x-text="statusText"></span>
+    </div>
+    <div class="vt-row" x-show="stats">
+      <span class="vt-key">vibe-trading-ai</span>
+      <span class="vt-val" x-text="stats?.vibe_trading_ai_version || '—'"></span>
+    </div>
+    <div class="vt-row" x-show="stats">
+      <span class="vt-key">MCP tools</span>
+      <span class="vt-val" x-text="(stats?.mcp_live_probe?.tool_count || 0) + ' / 54'"></span>
+    </div>
+    <div class="vt-row" x-show="stats">
+      <span class="vt-key">Risk tier</span>
+      <span class="vt-val" x-text="stats?.risk_tier || 'research'"></span>
+    </div>
+    <div class="vt-actions">
+      <button class="vt-btn" @click="refresh(true)">↻ Refresh</button>
+      <button class="vt-btn vt-btn-secondary" @click="openSettings()">⚙ Settings</button>
+    </div>
+  </div>
+
+  <h3>🛠 Live MCP tools <span x-text="'(' + tools.length + ')'" style="opacity:0.5;font-weight:normal;text-transform:none;letter-spacing:0;"></span></h3>
+  <input class="vt-search" type="text" placeholder="Filter tools…" x-model="filter"/>
+  <div>
+    <template x-for="t in filteredTools" :key="t">
+      <span class="vt-tool-pill" :title="t" x-text="t"></span>
+    </template>
+    <div x-show="filteredTools.length === 0" class="vt-empty">
+      No tools match the filter.
+    </div>
+  </div>
+
+  <h3>📚 Alpha Zoo (452)</h3>
+  <div class="vt-zoo-pick">
+    <template x-for="zoo in zoos" :key="zoo.id">
+      <button :class="{ active: activeZoo === zoo.id }"
+              @click="pickZoo(zoo.id)"
+              x-text="zoo.label + ' (' + zoo.count + ')'"></button>
+    </template>
+  </div>
+  <div style="margin-top: 8px; opacity: 0.7; font-size: 11px;" x-text="zooDescription"></div>
+
+  <h3>💼 Shadow Account</h3>
+  <div class="vt-card">
+    <div x-show="!shadowReady" class="vt-empty">
+      No shadow profile yet. Run <code>analyze_trade_journal</code> on a CSV to start the loop.
+    </div>
+    <div x-show="shadowReady">
+      <div class="vt-row">
+        <span class="vt-key">Profile</span>
+        <span class="vt-val" x-text="shadow.profile_name || 'unnamed'"></span>
+      </div>
+      <div class="vt-row">
+        <span class="vt-key">Rules</span>
+        <span class="vt-val" x-text="(shadow.rule_count || 0) + ' / 5'"></span>
+      </div>
+      <div class="vt-row">
+        <span class="vt-key">Last signals</span>
+        <span class="vt-val" x-text="shadow.last_signal_count ?? 0"></span>
+      </div>
+    </div>
+    <div class="vt-actions">
+      <button class="vt-btn vt-btn-secondary" @click="openSettings()">Open settings</button>
+    </div>
+  </div>
+
+  <h3>⚠ Safety</h3>
+  <div style="font-size: 11px; opacity: 0.75; line-height: 1.5;">
+    Vibe-Trading exposes <strong>zero order-placement</strong> tools via MCP.
+    <code>trading_*</code> reads only. Live execution requires the upstream
+    <code>vibe-trading</code> CLI with a connector profile — never the MCP server.
+  </div>
+
+</div>
+
+<script>
+  window.vibeTradingPanel = function vibeTradingPanel() {
+    return {
+      stats: null,
+      tools: [],
+      filter: "",
+      activeZoo: (localStorage.getItem('vt_active_zoo') || 'qlib158'),
+      shadow: {},
+      shadowReady: false,
+      zoos: [
+        { id: "qlib158",   label: "qlib158",   count: 154,
+          description: "Microsoft Qlib's Alpha158 feature handler (Apache-2.0)." },
+        { id: "alpha101",  label: "alpha101",  count: 101,
+          description: "Kakushadze (2015) '101 Formulaic Alphas' (arXiv:1601.00991)." },
+        { id: "gtja191",   label: "gtja191",   count: 191,
+          description: "Guotai Junan 2014 '191 Short-period Trading Alpha Factors'." },
+        { id: "academic",  label: "academic",  count: 6,
+          description: "Fama-French 5 + Carhart momentum (price-based proxies)." },
+      ],
+      async init() {
+        await this.refresh(false);
+        setInterval(() => { if (document.visibilityState === "visible") this.refresh(false); }, 60000);
+      },
+      get filteredTools() {
+        const f = this.filter.trim().toLowerCase();
+        if (!f) return this.tools;
+        return this.tools.filter(t => t.toLowerCase().includes(f));
+      },
+      get zooDescription() {
+        return (this.zoos.find(z => z.id === this.activeZoo) || {}).description || "";
+      },
+      get statusClass() {
+        if (!this.stats) return "vt-status-warn";
+        if (this.stats.mcp_live_probe?.probed) return "vt-status-ok";
+        return "vt-status-err";
+      },
+      get statusText() {
+        if (!this.stats) return "Loading…";
+        if (!this.stats.vibe_trading_ai_installed) return "vibe-trading-ai not installed";
+        if (this.stats.mcp_live_probe?.probed) {
+          return "MCP server live — 54 tools reachable";
+        }
+        return "MCP server down — run the plugin's execute.py";
+      },
+      pickZoo(id) {
+        this.activeZoo = id;
+        try { localStorage.setItem('vt_active_zoo', id); } catch (_) {}
+      },
+      openSettings() {
+        if (globalThis.openPluginConfig) globalThis.openPluginConfig('vibe_trading');
+        else if (globalThis.Alpine?.store('plugins')?.openConfig) {
+          globalThis.Alpine.store('plugins').openConfig('vibe_trading');
+        } else {
+          globalThis.location.href = '/plugins/vibe_trading/config.html';
+        }
+      },
+      async refresh(force) {
+        try {
+          const [s, t] = await Promise.all([
+            fetch('/api/plugins/vibe_trading/stats', {
+              method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'
+            }).then(r => r.json()),
+            fetch('/api/plugins/vibe_trading/tools', {
+              method: 'POST', headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({ force: !!force })
+            }).then(r => r.json()),
+          ]);
+          this.stats = s;
+          this.tools = (t && t.tools) || [];
+        } catch (e) {
+          this.stats = null;
+          this.tools = [];
+        }
+      },
+    };
+  };
+</script>
+</body>
+</html>

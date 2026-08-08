@@ -1,0 +1,243 @@
+<html>
+<head>
+<title>Vibe-Trading Settings</title>
+<script type="module">
+import { store } from "/components/plugins/plugin-settings-store.js";
+</script>
+</head>
+<body>
+<div x-data="{ saving: false, saved: false, error: null, stats: null, refreshing: false, tools: [], toolCount: 0, loadingTools: false, forceRefresh: false }">
+
+<h3 style="margin: 8px 0 12px 0;">Vibe-Trading — Settings</h3>
+<p style="opacity: 0.75; font-size: 12px; margin: 0 0 16px 0;">
+Wires the <a href="https://github.com/HKUDS/Vibe-Trading" target="_blank" rel="noopener">HKUDS/Vibe-Trading</a>
+MCP server into Agent Zero. Most fields are optional; only <code>TUSHARE_TOKEN</code> and the LLM key for
+<code>run_swarm</code> actually need values. All other tools run key-free for HK/US/crypto, and free for
+A-shares via akshare/baostock/sina/eastmoney/mootdx auto-fallback.
+</p>
+
+<!-- =========================================================== -->
+<!-- MCP server registration                                      -->
+<!-- =========================================================== -->
+<div class="settings-section">
+<h4 style="margin: 0 0 8px 0;">MCP server</h4>
+<label><input type="checkbox" x-model="config.mcp_enabled" />
+Register <code>vibe-trading-mcp</code> as an MCP server in Agent Zero</label>
+<small>Uncheck to keep the plugin files installed but stop exposing the 54 tools to the agent.</small>
+</div>
+
+<div class="settings-section">
+<label>MCP command</label>
+<input type="text" x-model="config.mcp_command" placeholder="vibe-trading-mcp" />
+<small>Console script installed by <code>pip install vibe-trading-ai</code>. Override only if you wrap the
+server in a sidecar venv.</small>
+</div>
+
+<div class="settings-section">
+<label>MCP extra args (JSON array, optional)</label>
+<input type="text" x-model="config.mcp_args" placeholder='[]' />
+<small>JSON array, e.g. <code>["--verbose"]</code>. Rarely needed.</small>
+</div>
+
+<!-- =========================================================== -->
+<!-- LLM provider (used by run_swarm)                             -->
+<!-- =========================================================== -->
+<div class="settings-section">
+<h4 style="margin: 0 0 8px 0;">LLM provider <small style="opacity: 0.6;">(only used by run_swarm multi-agent teams)</small></h4>
+</div>
+
+<div class="settings-section">
+<label>Provider</label>
+<select x-model="config.llm_provider">
+<option value="openrouter">OpenRouter (recommended — multi-model gateway)</option>
+<option value="openai">OpenAI</option>
+<option value="deepseek">DeepSeek</option>
+<option value="gemini">Gemini</option>
+<option value="groq">Groq</option>
+<option value="dashscope">DashScope / Qwen</option>
+<option value="zhipu">Zhipu / GLM</option>
+<option value="moonshot">Moonshot / Kimi</option>
+<option value="minimax">MiniMax (requires temperature &gt; 0)</option>
+<option value="mimo">Xiaomi MIMO</option>
+<option value="zai">Z.ai (Coding Plan)</option>
+<option value="ollama">Ollama (local)</option>
+</select>
+<small>The other 53 MCP tools do not consume an LLM key.</small>
+</div>
+
+<div class="settings-section">
+<label>Model name</label>
+<input type="text" x-model="config.llm_model" placeholder="deepseek/deepseek-v4-pro" />
+<small>Free-form; use the exact model id your provider expects.</small>
+</div>
+
+<div class="settings-section">
+<label>Temperature</label>
+<input type="number" step="0.1" min="0" max="2" x-model.number="config.temperature" />
+<small>0.0 is the upstream default. MiniMax requires &gt; 0.</small>
+</div>
+
+<div class="settings-section">
+<label>Request timeout (seconds)</label>
+<input type="number" min="10" max="3600" x-model.number="config.timeout_seconds" />
+<small>Hard cap on a single LLM call inside Vibe-Trading. Default 120.</small>
+</div>
+
+<!-- =========================================================== -->
+<!-- Data source API keys (all optional)                          -->
+<!-- =========================================================== -->
+<div class="settings-section">
+<h4 style="margin: 0 0 8px 0;">Data source keys <small style="opacity: 0.6;">(all optional)</small></h4>
+<small>Without these, Vibe-Trading uses the free yfinance / stooq / yahoo / akshare / baostock / sina / eastmoney / mootdx / OKX chain with auto-fallback.</small>
+</div>
+
+<div class="settings-section">
+<label>TUSHARE_TOKEN <small style="opacity: 0.6;">— China A-share premium data</small></label>
+<input type="password" x-model="config.tushare_token" placeholder="your-tushare-token" />
+<small>Sign up at <a href="https://tushare.pro" target="_blank" rel="noopener">tushare.pro</a>.
+Free tier works for daily bars; higher tiers for fundamentals/limit-up data.</small>
+</div>
+
+<div class="settings-section">
+<label>FINNHUB_API_KEY <small style="opacity: 0.6;">— US equities fallback</small></label>
+<input type="password" x-model="config.finnhub_api_key" />
+</div>
+
+<div class="settings-section">
+<label>ALPHAVANTAGE_API_KEY <small style="opacity: 0.6;">— US equities fallback</small></label>
+<input type="password" x-model="config.alphavantage_api_key" />
+</div>
+
+<div class="settings-section">
+<label>TIINGO_API_KEY <small style="opacity: 0.6;">— US equities fallback</small></label>
+<input type="password" x-model="config.tiingo_api_key" />
+</div>
+
+<div class="settings-section">
+<label>FMP_API_KEY <small style="opacity: 0.6;">— US equities fallback</small></label>
+<input type="password" x-model="config.fmp_api_key" />
+</div>
+
+<div class="settings-section">
+<label>FRED_API_KEY <small style="opacity: 0.6;">— macro series (FRED)</small></label>
+<input type="password" x-model="config.fred_api_key" />
+</div>
+
+<div class="settings-section">
+<label>VIBE_TRADING_IWENCAI_KEY <small style="opacity: 0.6;">— A-share NL research</small></label>
+<input type="password" x-model="config.iwencai_key" />
+</div>
+
+<div class="settings-section">
+<label><input type="checkbox" x-model="config.data_cache" :true-value="1" :false-value="0" />
+Opt-in local market-data cache</label>
+<small>Caches settled historical bars under <code>~/.vibe-trading/cache/loaders/</code> so repeated
+backtests skip the network. Disable to force a fresh fetch every run.</small>
+</div>
+
+<!-- =========================================================== -->
+<!-- Risk guardrails                                              -->
+<!-- =========================================================== -->
+<div class="settings-section">
+<h4 style="margin: 0 0 8px 0;">Risk guardrails</h4>
+<small>The Vibe-Trading MCP server never exposes order-placement tools. The risk tier is a soft policy
+the agent must respect; you can override per session.</small>
+</div>
+
+<div class="settings-section">
+<label>Risk tier</label>
+<select x-model="config.risk_tier">
+<option value="research">Research only (default — safest)</option>
+<option value="paper">Paper trading (still no live orders via MCP)</option>
+<option value="live">Live (requires explicit per-action confirmation)</option>
+</select>
+</div>
+
+<div class="settings-section">
+<label>Max drawdown cap (%)</label>
+<input type="number" min="1" max="100" x-model.number="config.max_drawdown_pct" />
+<small>Soft cap the agent uses to decide when to pause and re-confirm with you. Not enforced at the MCP layer.</small>
+</div>
+
+<div class="settings-section">
+<label><input type="checkbox" x-model="config.require_explicit_confirmation" />
+Require explicit confirmation for every would-be order (strongly recommended)</label>
+<small>Even with a live connector profile, the agent must surface every action for your OK before any
+tool is allowed to act on it.</small>
+</div>
+
+<!-- =========================================================== -->
+<!-- Save + status                                                -->
+<!-- =========================================================== -->
+<hr style="margin: 16px 0; opacity: 0.3;" />
+
+<div class="settings-section">
+<button type="button" @click="
+  saving = true; saved = false; error = null;
+  fetch('/api/plugins/vibe_trading/sync_mcp', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ overrides: config })
+  })
+    .then(r => r.json())
+    .then(j => { if (j.success) { saved = true; } else { error = j.error || 'sync failed'; } saving = false; })
+    .catch(e => { error = String(e); saving = false; });
+" :disabled="saving">
+<span x-show="!saving">Save &amp; re-sync MCP server</span>
+<span x-show="saving">Saving…</span>
+</button>
+<span x-show="saved" style="margin-left: 8px; color: #6dd58c;">Saved. Restart Agent Zero to pick up the new MCP server config.</span>
+<span x-show="error" style="margin-left: 8px; color: #ff6b6b;" x-text="error"></span>
+</div>
+
+<div class="settings-section">
+<h4 style="margin: 0 0 8px 0;">Live status</h4>
+<div style="margin-top: 8px;">
+<button type="button"
+@click="
+  refreshing = true; forceRefresh = true;
+  Promise.all([
+    fetch('/api/plugins/vibe_trading/stats', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}' }).then(r => r.json()),
+    fetch('/api/plugins/vibe_trading/tools', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({force: true}) }).then(r => r.json())
+  ]).then(([s, t]) => {
+    stats = s; tools = (t.tools || []); toolCount = t.count || 0; loadingTools = false; refreshing = false;
+  }).catch(e => { error = String(e); refreshing = false; });
+" :disabled="refreshing">
+Refresh status &amp; tool list
+</button>
+</div>
+<div x-show="stats" style="margin-top: 12px; font-size: 12px; line-height: 1.55;">
+<div><strong>vibe-trading-ai:</strong> <span x-text="stats?.vibe_trading_ai_installed ? ('installed ' + stats.vibe_trading_ai_version) : 'NOT installed — run: pip install vibe-trading-ai'"></span></div>
+<div><strong>Console script:</strong> <span x-text="stats?.mcp_command_exists ? stats.mcp_command : ('missing — ' + (stats?.mcp_command || '?'))"></span></div>
+<div><strong>MCP enabled in config:</strong> <span x-text="stats?.mcp_enabled_in_config ? 'yes' : 'no'"></span></div>
+<div><strong>MCP registered in Agent Zero:</strong> <span x-text="stats?.mcp_registered_in_settings ? 'yes' : 'no'"></span></div>
+<div><strong>Live probe:</strong>
+<span x-text="stats?.mcp_live_probe?.probed ? (stats.mcp_live_probe.tool_count + ' tools discovered') : ('failed — ' + (stats?.mcp_live_probe?.error || 'unknown'))"
+      :style="stats?.mcp_live_probe?.probed ? 'color: #6dd58c;' : 'color: #ff6b6b;'"></span></div>
+<div><strong>Toggle:</strong> <span x-text="stats?.toggle_state"></span></div>
+<div><strong>Risk tier:</strong> <span x-text="stats?.risk_tier"></span></div>
+<div><strong>LLM provider:</strong> <span x-text="(stats?.llm_provider || '?') + ' / ' + (stats?.llm_model || '?')"></span></div>
+</div>
+
+<div x-show="tools.length > 0" style="margin-top: 12px;">
+<small style="opacity: 0.7;">Tools live in the MCP server right now (<span x-text="toolCount"></span>):</small>
+<div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; max-height: 160px; overflow: auto;">
+<template x-for="t in tools" :key="t">
+<code style="background: var(--vibe-trading-accent-soft, rgba(79,140,255,0.12)); color: var(--vibe-trading-accent, #4f8cff); padding: 2px 6px; border-radius: 3px; font-size: 11px;" x-text="t"></code>
+</template>
+</div>
+</div>
+</div>
+
+<hr style="margin: 16px 0; opacity: 0.3;" />
+<div class="settings-section">
+<small style="opacity: 0.6;">
+Need to do a full restart? Run <code>python /a0/usr/plugins/vibe_trading/execute.py</code> from the
+terminal for a complete health check. See <a href="/plugins/vibe_trading/page.html" target="_blank">plugin page</a>
+for the full tool list, upstream docs, and Shadow Account workflow.
+</small>
+</div>
+
+</div>
+</body>
+</html>

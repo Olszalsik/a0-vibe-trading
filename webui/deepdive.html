@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Vibe-Trading · Deep Dive</title>
+<meta name="plugin" content="vibe_trading">
+<meta name="plugin-page" content="deepdive">
+<style>
+:root {
+ --vt-bg: var(--vibe-trading-accent-soft, rgba(79,140,255,0.10));
+ --vt-accent: var(--vibe-trading-accent, #4f8cff);
+ --vt-text: var(--text-color, #e6e6e6);
+ --vt-muted: var(--muted-text-color, #9aa0a6);
+ --vt-card: var(--card-bg, rgba(255,255,255,0.05));
+ --vt-border: var(--border-color, rgba(255,255,255,0.08));
+ --vt-success: #3ecf8e;
+ --vt-error: #ff5577;
+}
+.vt-dive {
+ display: flex;
+ flex-direction: column;
+ gap: 14px;
+ padding: 18px 22px;
+ color: var(--vt-text);
+ font: 14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+.vt-dive h1 { margin: 0 0 4px; font-size: 22px; font-weight: 600; }
+.vt-dive h2 { margin: 0 0 8px; font-size: 15px; font-weight: 600; color: var(--vt-accent); }
+.vt-dive .row { display: flex; gap: 10px; align-items: center; }
+.vt-dive input[type=text] {
+ flex: 1;
+ background: var(--vt-card);
+ color: var(--vt-text);
+ border: 1px solid var(--vt-border);
+ border-radius: 6px;
+ padding: 8px 10px;
+ font-size: 14px;
+ outline: none;
+}
+.vt-dive input[type=text]:focus { border-color: var(--vt-accent); }
+.vt-dive button {
+ background: var(--vt-accent);
+ color: white;
+ border: none;
+ border-radius: 6px;
+ padding: 8px 14px;
+ font-weight: 500;
+ cursor: pointer;
+}
+.vt-dive button:hover { filter: brightness(1.10); }
+.vt-dive button:disabled { opacity: 0.5; cursor: wait; }
+.vt-dive .grid {
+ display: grid;
+ grid-template-columns: 2fr 1fr 1fr;
+ gap: 12px;
+}
+@media (max-width: 780px) { .vt-dive .grid { grid-template-columns: 1fr; } }
+.vt-dive .card {
+ background: var(--vt-card);
+ border: 1px solid var(--vt-border);
+ border-radius: 8px;
+ padding: 14px;
+}
+.vt-dive .quote-card .ticker { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+.vt-dive .quote-card .price { font-size: 32px; font-weight: 700; }
+.vt-dive .quote-card .meta { color: var(--vt-muted); font-size: 12px; margin-top: 4px; }
+.vt-dive .badge {
+ display: inline-block;
+ padding: 2px 8px;
+ border-radius: 999px;
+ font-size: 11px;
+ background: var(--vt-bg);
+ color: var(--vt-accent);
+ margin-right: 6px;
+}
+.vt-dive .section { display: none; }
+.vt-dive .section.active { display: block; }
+.vt-dive .news-row {
+ padding: 8px 0;
+ border-bottom: 1px solid var(--vt-border);
+ display: flex;
+ flex-direction: column;
+ gap: 2px;
+}
+.vt-dive .news-row:last-child { border-bottom: none; }
+.vt-dive .news-row .title { font-weight: 500; }
+.vt-dive .news-row .meta { color: var(--vt-muted); font-size: 11px; }
+.vt-dive .row-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.vt-dive .row-table td, .vt-dive .row-table th {
+ padding: 4px 6px;
+ text-align: left;
+ border-bottom: 1px solid var(--vt-border);
+}
+.vt-dive .status-ok { color: var(--vt-success); }
+.vt-dive .status-fail { color: var(--vt-error); }
+.vt-dive .empty { color: var(--vt-muted); padding: 24px; text-align: center; }
+.vt-dive details summary { cursor: pointer; color: var(--vt-accent); }
+.vt-dive pre {
+ white-space: pre-wrap;
+ max-height: 240px;
+ overflow: auto;
+ background: rgba(0,0,0,0.25);
+ border: 1px solid var(--vt-border);
+ border-radius: 4px;
+ padding: 8px;
+ font-size: 11px;
+}
+</style>
+<script src="shared.js"></script>
+</head>
+<body x-data="vibeTradingDeepDive()" x-init="init()" class="vt-dive">
+ <h1>Deep Dive
+ <span class="badge" x-text="status"></span>
+ </h1>
+ <div class="row">
+ <input type="text" x-model="symbol" @keydown.enter="fetch()" placeholder="Symbol (e.g. AAPL.US, 600519.SH, 0700.HK)">
+ <button @click="fetch(true)" :disabled="loading">Refresh</button>
+ <a href="/usr/plugins/vibe_trading/dashboard.html" style="color: var(--vt-accent); align-self: center; font-size: 12px;">&larr; Dashboard</a>
+ </div>
+
+ <div class="empty" x-show="!result && !loading">Type a symbol and press Enter.</div>
+
+ <div x-show="loading" class="empty">Fetching profile, financials, news, price&hellip;</div>
+
+ <template x-if="result">
+ <div class="grid">
+ <div class="card quote-card">
+ <div class="ticker" x-text="result.symbol"></div>
+ <template x-if="priceTail">
+ <div>
+ <div class="price" x-text="formatPrice(priceTail)"></div>
+ <div class="meta">
+ <span x-text="priceTail.close_date || priceTail.date || ''"></span>
+ &middot; closed at
+ <span x-text="priceTail.close || priceTail.Close || '?'"></span>
+ </div>
+ </div>
+ </template>
+ <template x-if="!priceTail">
+ <div class="meta"><span class="status-fail">no quote</span></div>
+ </template>
+ <div class="meta" style="margin-top:14px">
+ fetched in <span x-text="result.elapsed_ms"></span>ms
+ <template x-if="cached"><span> &middot; cached</span></template>
+ </div>
+ </div>
+
+ <div class="card">
+ <h2>News</h2>
+ <div x-show="news.length === 0" class="meta">none</div>
+ <template x-for="n in news" :key="n.title">
+ <div class="news-row">
+ <div class="title" x-text="n.title"></div>
+ <div class="meta">
+ <span x-text="n.publisher || n.source || ''"></span>
+ &middot; <span x-text="formatDate(n.publish_time || n.published_at || n.time || '')"></span>
+ </div>
+ </div>
+ </template>
+ </div>
+
+ <div class="card">
+ <h2>Section status</h2>
+ <template x-for="(sec, key) in sectionStatus" :key="key">
+ <div class="row" style="justify-content:space-between">
+ <span x-text="key"></span>
+ <span :class="sec.ok ? 'status-ok' : 'status-fail'" x-text="sec.ok ? 'ok' : 'fail'"></span>
+ </div>
+ </template>
+ </div>
+ </div>
+ </template>
+
+ <template x-if="result">
+ <div class="card">
+ <h2>Profile</h2>
+ <details>
+ <summary>show raw</summary>
+ <pre x-text="stringify(result.sections.profile)"></pre>
+ </details>
+ </div>
+ </template>
+
+ <template x-if="result">
+ <div class="card">
+ <h2>Financial indicators (newest quarters)</h2>
+ <details>
+ <summary>show raw</summary>
+ <pre x-text="stringify(result.sections.financials)"></pre>
+ </details>
+ </div>
+ </template>
+
+ <script>
+function vibeTradingDeepDive() {
+ return {
+ symbol: '',
+ result: null,
+ loading: false,
+ status: 'idle',
+ cached: false,
+ priceTail: null,
+ news: [],
+ sectionStatus: {},
+ init() {
+ try {
+ const params = new URLSearchParams(window.location.search);
+ const s = params.get('symbol');
+ if (s) { this.symbol = s; this.fetch(false); }
+ } catch (e) {}
+ },
+ stringify(v) { try { return JSON.stringify(v, null, 2); } catch (e) { return String(v); } },
+ formatPrice(p) {
+ const n = parseFloat(p.close || p.Close || p.price);
+ return isNaN(n) ? '?' : n.toFixed(2);
+ },
+ formatDate(s) {
+ if (!s) return '';
+ try { return new Date(s).toISOString().slice(0,16); } catch (e) { return s; }
+ },
+ async fetch(force) {
+ const sym = (this.symbol || '').trim().toUpperCase();
+ if (!sym) { this.status = 'symbol required'; return; }
+ this.loading = true; this.status = 'fetching'; this.cached = false;
+ try {
+ const res = await fetch(window.location.pathname.replace(/deepdive\.html$/, 'api') + '/', {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+ credentials: 'same-origin',
+ body: JSON.stringify({ action: 'fetch', symbol: sym, force: !!force })
+ });
+ const json = await res.json();
+ if (!json.ok) { this.status = 'error'; this.result = null; return; }
+ this.result = json.data;
+ this.cached = !!json.cached;
+ this.priceTail = json.data && json.data.price_tail;
+ this.news = (json.data && json.data.recent_news) || [];
+ const secMap = (json.data && json.data.sections) || {};
+ const status = {};
+ for (const k of Object.keys(secMap)) {
+ status[k] = { ok: !!secMap[k].ok };
+ }
+ this.sectionStatus = status;
+ this.status = json.cached ? 'cached' : 'live';
+ } catch (e) {
+ this.status = 'network error';
+ } finally {
+ this.loading = false;
+ }
+ }
+ };
+}
+</script>
+</body>
+</html>

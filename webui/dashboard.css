@@ -1,0 +1,326 @@
+/*
+  Vibe-Trading — Dashboard CSS.
+
+  Reuses the page-head CSS variables
+    --vibe-trading-accent: #4f8cff;
+    --vibe-trading-accent-soft: rgba(79, 140, 255, 0.12);
+  and stays scoped to .vt-dashboard so it never leaks into the rest of
+  the WebUI.
+
+  Single-quote strings where possible (plugin-wide constraint).
+*/
+
+.vt-dashboard {
+  font-family: inherit;
+  color: var(--a0-fg, #1f2937);
+  padding: 0 0 32px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* ---------- header ---------- */
+.vt-dashboard .vt-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 0 8px;
+  border-bottom: 1px solid var(--a0-border, #e5e7eb);
+  margin-bottom: 16px;
+}
+.vt-dashboard .vt-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+.vt-dashboard .vt-header .vt-subtitle {
+  margin: 4px 0 0;
+  color: var(--a0-muted, #6b7280);
+  font-size: 13px;
+}
+.vt-dashboard .vt-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.vt-dashboard .vt-version-tag {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--vibe-trading-accent-soft);
+  color: var(--vibe-trading-accent);
+  font-weight: 600;
+}
+
+/* ---------- tabs ---------- */
+.vt-dashboard .vt-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  border-bottom: 1px solid var(--a0-border, #e5e7eb);
+  margin-bottom: 16px;
+}
+.vt-dashboard .vt-tab {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--a0-muted, #6b7280);
+  cursor: pointer;
+  position: relative;
+  bottom: -1px;
+  transition: color 120ms, border-color 120ms;
+}
+.vt-dashboard .vt-tab:hover { color: var(--vibe-trading-accent); }
+.vt-dashboard .vt-tab-active {
+  color: var(--vibe-trading-accent);
+  border-bottom-color: var(--vibe-trading-accent);
+}
+.vt-dashboard .vt-tab-tag {
+  margin-left: 6px;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--vibe-trading-accent-soft);
+  color: var(--vibe-trading-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ---------- status bar ---------- */
+.vt-dashboard .vt-status {
+  background: var(--vibe-trading-accent-soft);
+  border: 1px solid var(--vibe-trading-accent);
+  color: var(--a0-fg, #1f2937);
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+/* ---------- cards / grids ---------- */
+.vt-dashboard .vt-card {
+  background: var(--a0-card, #ffffff);
+  border: 1px solid var(--a0-border, #e5e7eb);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+.vt-dashboard .vt-card h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.vt-dashboard .vt-card h4 {
+  margin: 16px 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--a0-muted, #6b7280);
+}
+.vt-dashboard .vt-meta {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--a0-muted, #6b7280);
+}
+.vt-dashboard .vt-placeholder {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--a0-muted, #6b7280);
+  font-style: italic;
+}
+.vt-dashboard .vt-error {
+  margin: 8px 0;
+  font-size: 13px;
+  color: #b91c1c;
+}
+.vt-dashboard .vt-warn {
+  font-size: 11px;
+  color: #b45309;
+}
+
+/* stat tiles */
+.vt-dashboard .vt-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.vt-dashboard .vt-stat-tile {
+  background: var(--a0-card, #ffffff);
+  border: 1px solid var(--a0-border, #e5e7eb);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+.vt-dashboard .vt-stat-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--a0-muted, #6b7280);
+  margin-bottom: 4px;
+}
+.vt-dashboard .vt-stat-value {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--a0-fg, #1f2937);
+}
+.vt-dashboard .vt-stat-meta {
+  font-size: 11px;
+  margin-top: 4px;
+  color: var(--a0-muted, #6b7280);
+}
+
+/* tool chip grid */
+.vt-dashboard .vt-tool-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.vt-dashboard .vt-tool-chip {
+  font-size: 11px;
+  font-family: var(--a0-mono, ui-monospace, monospace);
+  padding: 3px 8px;
+  background: var(--vibe-trading-accent-soft);
+  color: var(--vibe-trading-accent);
+  border-radius: 4px;
+  border: 1px solid transparent;
+}
+
+/* ---------- forms ---------- */
+.vt-dashboard .vt-form-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.vt-dashboard .vt-field {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 280px;
+  min-width: 220px;
+}
+.vt-dashboard .vt-field-narrow {
+  flex: 0 0 140px;
+}
+.vt-dashboard .vt-field > span {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--a0-muted, #6b7280);
+  margin-bottom: 4px;
+}
+.vt-dashboard .vt-field input,
+.vt-dashboard .vt-field select {
+  padding: 6px 10px;
+  border: 1px solid var(--a0-border, #e5e7eb);
+  border-radius: 6px;
+  font-size: 13px;
+  background: var(--a0-input-bg, #ffffff);
+  color: var(--a0-fg, #1f2937);
+}
+.vt-dashboard .vt-field input:focus,
+.vt-dashboard .vt-field select:focus {
+  outline: none;
+  border-color: var(--vibe-trading-accent);
+  box-shadow: 0 0 0 3px var(--vibe-trading-accent-soft);
+}
+
+/* ---------- buttons ---------- */
+.vt-dashboard .vt-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms, color 120ms;
+}
+.vt-dashboard .vt-btn[disabled] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.vt-dashboard .vt-btn-primary {
+  background: var(--vibe-trading-accent);
+  color: #fff;
+}
+.vt-dashboard .vt-btn-primary:hover:not([disabled]) {
+  filter: brightness(0.92);
+}
+.vt-dashboard .vt-btn-ghost {
+  background: transparent;
+  border-color: var(--a0-border, #e5e7eb);
+  color: var(--a0-fg, #1f2937);
+}
+.vt-dashboard .vt-btn-ghost:hover:not([disabled]) {
+  border-color: var(--vibe-trading-accent);
+  color: var(--vibe-trading-accent);
+}
+.vt-dashboard .vt-btn-text {
+  background: transparent;
+  border: 0;
+  color: var(--vibe-trading-accent);
+  padding: 0 4px;
+  font-size: 12px;
+}
+
+/* ---------- quotes ---------- */
+.vt-dashboard .vt-quote-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+.vt-dashboard .vt-quote-card {
+  border: 1px solid var(--a0-border, #e5e7eb);
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: var(--a0-card, #ffffff);
+}
+.vt-dashboard .vt-quote-code {
+  font-family: var(--a0-mono, ui-monospace, monospace);
+  font-size: 11px;
+  color: var(--a0-muted, #6b7280);
+}
+.vt-dashboard .vt-quote-price {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 2px 0;
+}
+.vt-dashboard .vt-quote-change { font-size: 12px; font-weight: 500; }
+.vt-dashboard .vt-up { color: #15803d; }
+.vt-dashboard .vt-down { color: #b91c1c; }
+.vt-dashboard .vt-sparkline {
+  width: 100%;
+  height: 30px;
+  display: block;
+  margin-top: 6px;
+}
+
+/* ---------- result panel ---------- */
+.vt-dashboard .vt-result {
+  margin-top: 12px;
+  border: 1px solid var(--a0-border, #e5e7eb);
+  border-radius: 6px;
+  background: #f9fafb;
+  padding: 12px;
+}
+.vt-dashboard .vt-result pre {
+  margin: 0;
+  font-family: var(--a0-mono, ui-monospace, monospace);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 360px;
+  overflow: auto;
+}
+
+/* ---------- panes ---------- */
+.vt-dashboard .vt-pane[style*="display: none"] { display: none !important; }

@@ -1,0 +1,119 @@
+<!-- Vibe-Trading -- Alpha Zoo gallery. -->
+<div x-data="alphazooPage()" x-init="init()" class="vt-page vt-alphazoo">
+  <header class="vt-page-header">
+    <h2>Alpha Zoo</h2>
+    <p class="vt-subtitle"><span x-text="zoos.length"></span> zoos &middot; <span x-text="totalAlphas"></span> pre-built alphas</p>
+  </header>
+  <section class="vt-status" x-show="statusMessage" x-transition>
+    <span x-text="statusMessage"></span>
+    <button class="vt-btn vt-btn-text" @click="statusMessage = ''">dismiss</button>
+  </section>
+  <div class="vt-card-grid">
+    <template x-for="zoo in zoos" :key="zoo.id">
+      <div class="vt-card">
+        <header class="vt-zoo-header">
+          <h3 x-text="zoo.name"></h3>
+          <span class="vt-pill" x-text="zoo.count + ' alphas'"></span>
+        </header>
+        <p class="vt-meta" x-text="zoo.origin"></p>
+        <div class="vt-tag-row">
+          <template x-for="tag in zoo.tags" :key="tag">
+            <span class="vt-tag" x-text="tag"></span>
+          </template>
+        </div>
+        <details class="vt-zoo-details">
+          <summary>Sample alphas</summary>
+          <ul class="vt-sample-list">
+            <template x-for="factor in zoo.sample_factors" :key="factor">
+              <li><code x-text="factor"></code></li>
+            </template>
+          </ul>
+        </details>
+      </div>
+    </template>
+  </div>
+  <div class="vt-card vt-bench-card">
+    <h3>Benchmark representative alphas</h3>
+    <p class="vt-meta">Runs factor_analysis on the first N sample alphas per zoo.</p>
+    <div class="vt-form-row">
+      <label class="vt-field"><span>Codes (comma)</span><input type="text" x-model="bench.codes" /></label>
+      <label class="vt-field vt-field-narrow"><span>Sample per zoo</span><input type="number" min="1" max="10" x-model.number="bench.sample_per_zoo" /></label>
+      <button class="vt-btn vt-btn-primary" @click="runBench()" :disabled="bench.loading">
+        <span x-show="!bench.loading">Run</span>
+        <span x-show="bench.loading">Running...</span>
+      </button>
+    </div>
+    <div x-show="bench.error" class="vt-error" x-text="bench.error"></div>
+    <div x-show="bench.rows && bench.rows.length" class="vt-result">
+      <h4>Results</h4>
+      <table class="vt-table">
+        <thead><tr><th>Zoo</th><th>Factor</th><th>IC</th><th>IR</th><th>L/S</th><th></th></tr></thead>
+        <tbody>
+          <template x-for="row in bench.rows" :key="row.zoo + row.factor_name">
+            <tr>
+              <td x-text="row.zoo"></td>
+              <td><code x-text="row.factor_name"></code></td>
+              <td x-text="formatNum(row.ic)"></td>
+              <td x-text="formatNum(row.ir)"></td>
+              <td x-text="formatNum(row.long_short_spread)"></td>
+              <td>
+                <span class="vt-tag" x-show="row.ok">ok</span>
+                <span class="vt-tag vt-tag-bad" x-show="!row.ok">fail</span>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<script>
+function alphazooPage() {
+  return {
+    zoos: [],
+    totalAlphas: 0,
+    statusMessage: '',
+    bench: { codes: 'AAPL.US, 600519.SH', sample_per_zoo: 3, loading: 0, error: '', rows: [] },
+    csrf: function() { return ((document.querySelector('meta[name=csrf-token]') || {}).content || ''); },
+    callApi: function(action, payload) {
+      var self = this;
+      return fetch('/api/plugins/vibe_trading/alphazoo', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': self.csrf() },
+        body: JSON.stringify(Object.assign({ action: action }, payload || {})),
+      }).then(function(r){ return r.json(); }).catch(function(e){ return { success: 0, error: 'network: ' + (e && e.message) }; });
+    },
+    init: function() {
+      var self = this;
+      this.callApi('list', {}).then(function(res) {
+        if (res && res.success && res.manifest) {
+          self.zoos = res.manifest.zoos || [];
+          self.totalAlphas = res.manifest.total_alphas || 0;
+        } else {
+          self.statusMessage = 'Failed to load alpha manifest: ' + ((res && res.error) || 'unknown');
+        }
+      });
+    },
+    runBench: function() {
+      var self = this;
+      if (!this.bench.codes) { this.bench.error = 'enter at least one code'; return; }
+      this.bench.loading = 1; this.bench.error = '';
+      var codes = this.bench.codes.split(',').map(function(s){ return s.trim(); }).filter(Boolean);
+      this.callApi('bench', { codes: codes, sample_per_zoo: this.bench.sample_per_zoo }).then(function(res) {
+        if (!res || !res.success) { self.bench.error = (res && res.error) || 'bench failed'; self.bench.rows = []; return; }
+        self.bench.rows = res.rows || [];
+        self.bench.loading = 0;
+      }).catch(function(e) {
+        self.bench.error = 'bench failed: ' + (e && e.message);
+        self.bench.loading = 0;
+      });
+    },
+    formatNum: function(v) {
+      if (v == null) return 'n/a';
+      if (typeof v === 'number') return Math.abs(v) < 0.01 ? v.toExponential(2) : v.toFixed(4);
+      return String(v);
+    }
+  };
+}
+window.alphazooPage = alphazooPage;
+</script>

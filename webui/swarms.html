@@ -1,0 +1,114 @@
+<!-- Vibe-Trading -- Swarm presets + run launcher. -->
+<div x-data="swarmsPage()" x-init="init()" class="vt-page vt-swarms">
+  <header class="vt-page-header">
+    <h2>Swarm presets</h2>
+    <p class="vt-subtitle"><span x-text="presets.length"></span> available presets &middot; read-only by default</p>
+  </header>
+  <section class="vt-status" x-show="statusMessage" x-transition>
+    <span x-text="statusMessage"></span>
+    <button class="vt-btn vt-btn-text" @click="statusMessage = ''">dismiss</button>
+  </section>
+  <div class="vt-card-grid">
+    <template x-for="preset in presets" :key="preset.name">
+      <div class="vt-card">
+        <header class="vt-zoo-header">
+          <h3 x-text="preset.name"></h3>
+          <span class="vt-pill" x-text="(preset.agent_count || '?') + ' agents'"></span>
+        </header>
+        <p class="vt-meta" x-text="preset.description"></p>
+        <div class="vt-tag-row">
+          <template x-for="v in (preset.required_variables || [])" :key="v">
+            <span class="vt-tag" x-text="v"></span>
+          </template>
+        </div>
+        <button class="vt-btn vt-btn-primary vt-btn-small" @click="selectPreset(preset)">Use</button>
+      </div>
+    </template>
+  </div>
+  <div class="vt-card" x-show="selected">
+    <h3>Start run: <span x-text="selected && selected.name"></span></h3>
+    <p class="vt-meta">Provide each required variable as a key-value pair.</p>
+    <div class="vt-form-row">
+      <label class="vt-field vt-field-narrow"><span>Wait seconds</span><input type="number" min="0" max="3600" x-model.number="start.waitSeconds" /></label>
+      <label class="vt-field vt-field-narrow"><span>Start-only</span><input type="checkbox" x-model="start.only" /></label>
+    </div>
+    <div class="vt-form-row" x-show="selected">
+      <template x-for="v in (selected && selected.required_variables) || []" :key="v">
+        <label class="vt-field"><span x-text="v"></span><input type="text" x-model="variables[v]" placeholder="value for this variable" /></label>
+      </template>
+    </div>
+    <button class="vt-btn vt-btn-primary" @click="startRun()" :disabled="start.loading">
+      <span x-show="!start.loading">Start run</span>
+      <span x-show="start.loading">Starting...</span>
+    </button>
+    <div class="vt-result" x-show="runResult">
+      <h4>Run started</h4>
+      <p>run_id: <code x-text="(runResult && runResult.run_id) || 'n/a'"></code></p>
+      <button class="vt-btn vt-btn-ghost vt-btn-small" @click="loadRun((runResult || {}).run_id)" x-show="runResult && runResult.run_id">Refresh status</button>
+      <pre x-text="JSON.stringify(runResult, null, 2)"></pre>
+    </div>
+  </div>
+</div>
+<script>
+function swarmsPage() {
+  return {
+    presets: [],
+    selected: null,
+    variables: {},
+    statusMessage: '',
+    runResult: null,
+    start: { waitSeconds: 60, only: 0, loading: 0 },
+    csrf: function() { return ((document.querySelector('meta[name=csrf-token]') || {}).content || ''); },
+    callApi: function(action, payload) {
+      var self = this;
+      return fetch('/api/plugins/vibe_trading/swarms', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': self.csrf() },
+        body: JSON.stringify(Object.assign({ action: action }, payload || {})),
+      }).then(function(r){ return r.json(); }).catch(function(e){ return { success: 0, error: 'network: ' + (e && e.message) }; });
+    },
+    init: function() {
+      var self = this;
+      this.callApi('list_presets', {}).then(function(res) {
+        if (res && res.success && res.data) {
+          var arr = Array.isArray(res.data) ? res.data : ((res.data.presets || res.data.items) || []);
+          self.presets = arr;
+        } else {
+          self.statusMessage = 'Failed to load presets: ' + ((res && res.error) || 'unknown');
+        }
+      });
+    },
+    selectPreset: function(preset) {
+      this.selected = preset;
+      this.variables = {};
+      (preset.required_variables || []).forEach(function(v) { this.variables[v] = ''; }.bind(this));
+    },
+    startRun: function() {
+      var self = this;
+      if (!this.selected) return;
+      var missing = (this.selected.required_variables || []).filter(function(v) { return !self.variables[v]; });
+      if (missing.length) { this.statusMessage = 'Missing required: ' + missing.join(', '); return; }
+      this.start.loading = 1;
+      this.callApi('start_run', {
+        preset_name: this.selected.name,
+        variables: this.variables,
+        wait_seconds: this.start.waitSeconds,
+        start_only: this.start.only,
+      }).then(function(res) {
+        if (!res || !res.success) { self.statusMessage = 'Run failed: ' + ((res && res.error) || 'unknown'); self.start.loading = 0; return; }
+        self.runResult = (res && res.data) || res;
+        self.start.loading = 0;
+      });
+    },
+    loadRun: function(runId) {
+      var self = this;
+      if (!runId) return;
+      this.callApi('get_run', { run_id: runId }).then(function(res) {
+        if (res && res.success) { self.runResult = res.data || res; }
+        else { self.statusMessage = 'Refresh failed: ' + ((res && res.error) || 'unknown'); }
+      });
+    }
+  };
+}
+window.swarmsPage = swarmsPage;
+</script>

@@ -1,0 +1,151 @@
+<div x-data="vibeTradingPrompt()" x-init="$nextTick(() => { if (window.Alpine) Alpine.bind($el, $data); })">
+  <style>
+    #vibe-trading-btn {
+      order: 2;
+      border-color: transparent;
+      border-radius: 12px;
+      background-color: transparent;
+      color: var(--vibe-trading-accent, #4f8cff);
+      transition: background-color 0.2s ease, border-color 0.2s ease,
+                  color 0.2s ease, transform 0.12s ease-in-out;
+    }
+    #vibe-trading-btn:hover { color: #2c6cd9; }
+    #vibe-trading-btn:active { transform: scale(0.92); }
+    #vibe-trading-btn.open { background-color: var(--vibe-trading-accent-soft, rgba(79,140,255,0.12)); }
+
+    .vt-prompt-menu {
+      position: absolute;
+      bottom: calc(100% + 8px);
+      right: 0;
+      min-width: 280px;
+      max-width: 360px;
+      background: var(--vt-menu-bg, #1a1d24);
+      color: var(--vt-menu-fg, #e6e6e6);
+      border: 1px solid var(--vt-menu-border, rgba(255,255,255,0.08));
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+      padding: 6px 0;
+      z-index: 1000;
+      font-size: 12px;
+    }
+    .vt-prompt-menu .vt-prompt-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: 8px 12px;
+      cursor: pointer;
+      transition: background-color 0.12s ease;
+    }
+    .vt-prompt-menu .vt-prompt-item:hover { background-color: rgba(79,140,255,0.15); }
+    .vt-prompt-menu .vt-prompt-item .vt-prompt-label {
+      font-weight: 600;
+      color: var(--vibe-trading-accent, #4f8cff);
+    }
+    .vt-prompt-menu .vt-prompt-item .vt-prompt-template {
+      opacity: 0.7;
+      font-size: 11px;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  </style>
+
+  <template x-teleport="#chat-buttons-wrapper">
+    <div style="position: relative; order: 2; display: inline-flex;"
+         @keydown.escape.window="open = false">
+      <button
+        type="button"
+        class="chat-button"
+        id="vibe-trading-btn"
+        :class="{ open: open }"
+        aria-label="Insert a Vibe-Trading research prompt"
+        title="Vibe-Trading prompt templates"
+        @click.stop="toggle()"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+          <path d="M3 17h2v-7H3v7zm4 0h2V7H7v10zm4 0h2v-4h-2v4zm4 0h2V4h-2v13zm4 0h2v-9h-2v9z"/>
+        </svg>
+      </button>
+
+      <div class="vt-prompt-menu" x-show="open" x-cloak @click.outside="open = false"
+           x-transition.opacity.duration.120ms>
+        <template x-for="item in items" :key="item.label">
+          <div class="vt-prompt-item" @click="insert(item.template)">
+            <span class="vt-prompt-label" x-text="item.label"></span>
+            <span class="vt-prompt-template" x-text="item.template"></span>
+          </div>
+        </template>
+      </div>
+    </div>
+  </template>
+</div>
+
+<script>
+  // Exposed as a global so Alpine's x-data="vibeTradingPrompt()" can find it.
+  // Kept tiny: all real work is in _insertIntoChatInput(), which talks to the
+  // existing chat input textarea via a single, framework-version-tolerant
+  // path (works on every modern Alpine x-model textarea).
+  window.vibeTradingPrompt = function vibeTradingPrompt() {
+    return {
+      open: false,
+      items: [
+        { label: "📈 Backtest a strategy",
+          template: "Backtest a 20/50 SMA crossover on AAPL from 2020 to 2024. Report total return, annual return, Sharpe, and max drawdown." },
+        { label: "🔬 Run factor analysis",
+          template: "Run factor_analysis on the CSI300 universe from 2018 to 2025 using the alpha101 zoo. Show top-quintile / bottom-quintile returns and the IC/IR." },
+        { label: "🕯️ Detect chart patterns",
+          template: "Use pattern_recognition on AAPL daily bars for the last 250 trading days. List any head-and-shoulders, double-top, or triangle formations with their dates." },
+        { label: "💼 Shadow Account from journal",
+          template: "Analyse my trading journal CSV (I will paste / upload it next) with analyze_trade_journal, then extract_shadow_strategy and run_shadow_backtest across A股/港股/美股/crypto. Report the delta-PnL versus my realised trades." },
+        { label: "📚 Load a finance skill",
+          template: "Call list_skills to enumerate the 79 Vibe-Trading skills, then load_skill() on the one most relevant to my next question (I will state it below)." },
+        { label: "🌐 Pull cross-market data",
+          template: "Use get_market_data to pull daily bars for AAPL, 0700.HK, and BTC/USDT over the last 90 days, then run a side-by-side volatility / correlation table." },
+        { label: "🧮 Price an option",
+          template: "Use analyze_options to price a 30-day ATM call on AAPL with current spot and the 30-day historical vol. Report price, delta, gamma, theta, vega." },
+        { label: "🐂🐻 Investment Committee",
+          template: "Run the investment_committee swarm on the following question: " },
+      ],
+      toggle() { this.open = !this.open; },
+      insert(template) {
+        this._insertIntoChatInput(template);
+        this.open = false;
+      },
+      _insertIntoChatInput(text) {
+        // The chat input is a single <textarea> (or contenteditable) inside the
+        // chat-bar wrapper. We try a few selectors so this works across
+        // v2.0/2.1/2.2 of the Agent Zero WebUI without depending on a private
+        // Alpine store name.
+        const sel = [
+          'textarea[data-chat-input]',
+          '#chat-input textarea',
+          '#chat-bar-input textarea',
+          '.chat-bar-input textarea',
+          '#chat-input',
+          'textarea[placeholder*="message" i]',
+          'textarea[aria-label*="message" i]',
+        ];
+        let el = null;
+        for (const s of sel) {
+          const c = document.querySelector(s);
+          if (c) { el = c; break; }
+        }
+        if (!el) return;
+        el.focus();
+        const start = el.selectionStart ?? el.value.length;
+        const end = el.selectionEnd ?? el.value.length;
+        const before = el.value.slice(0, start);
+        const after = el.value.slice(end);
+        const needsLeadingSpace = before.length > 0 && !before.endsWith(' ') && !before.endsWith('\n');
+        const insert = (needsLeadingSpace ? ' ' : '') + text;
+        el.value = before + insert + after;
+        const caret = (before + insert).length;
+        try { el.setSelectionRange(caret, caret); } catch (_) { /* contenteditable */ }
+        // Trigger Alpine / framework reactivity
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      },
+    };
+  };
+</script>

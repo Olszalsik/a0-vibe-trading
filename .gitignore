@@ -1,0 +1,27 @@
+# --- Personal / runtime config (NEVER published) ---------------------------
+# Per-install runtime config; defaults ship as default_config.yaml.
+# (vibe_trading currently ships only defaults — no config.json yet.)
+config.json
+config.json.before-*.bak
+
+# --- Local pre-edit backups (pre-theme-break migration leftovers) ------------
+*.bak
+*.before-*.bak
+*.pre_*.bak
+
+# --- Runtime toggle / disabled-flag state -----------------------------------
+.toggle-*
+.disabled
+
+# --- Python caches ----------------------------------------------------------
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- OS clutter -------------------------------------------------------------
+.DS_Store
+Thumbs.db

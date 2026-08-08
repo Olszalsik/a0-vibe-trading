@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Vibe-Trading · Skills Browser</title>
+<meta name="plugin" content="vibe_trading">
+<meta name="plugin-page" content="skills">
+<style>
+:root {
+ --vt-bg: var(--vibe-trading-accent-soft, rgba(79,140,255,0.10));
+ --vt-accent: var(--vibe-trading-accent, #4f8cff);
+ --vt-text: var(--text-color, #e6e6e6);
+ --vt-muted: var(--muted-text-color, #9aa0a6);
+ --vt-card: var(--card-bg, rgba(255,255,255,0.05));
+ --vt-border: var(--border-color, rgba(255,255,255,0.08));
+}
+.vt-sk {
+ display: flex; flex-direction: column;
+ padding: 18px 22px; gap: 14px;
+ color: var(--vt-text);
+ font: 14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+.vt-sk h1 { margin: 0 0 4px; font-size: 22px; font-weight: 600; }
+.vt-sk .top {
+ display: flex; gap: 10px; flex-wrap: wrap;
+ align-items: center;
+}
+.vt-sk input[type=text] {
+ flex: 1 1 280px;
+ background: var(--vt-card);
+ color: var(--vt-text);
+ border: 1px solid var(--vt-border);
+ border-radius: 6px;
+ padding: 8px 10px;
+ font-size: 13px;
+ outline: none;
+}
+.vt-sk input[type=text]:focus { border-color: var(--vt-accent); }
+.vt-sk .chip {
+ padding: 4px 10px;
+ border-radius: 999px;
+ background: var(--vt-card);
+ color: var(--vt-muted);
+ border: 1px solid var(--vt-border);
+ cursor: pointer;
+ font-size: 12px;
+ user-select: none;
+}
+.vt-sk .chip.active {
+ background: var(--vt-bg);
+ color: var(--vt-accent);
+ border-color: var(--vt-accent);
+}
+.vt-sk .grid {
+ display: grid;
+ grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+ gap: 10px;
+}
+.vt-sk .card {
+ background: var(--vt-card);
+ border: 1px solid var(--vt-border);
+ border-radius: 8px;
+ padding: 12px;
+ cursor: pointer;
+ display: flex; flex-direction: column; gap: 6px;
+ transition: border-color 120ms;
+}
+.vt-sk .card:hover { border-color: var(--vt-accent); }
+.vt-sk .card .name { font-weight: 600; font-size: 13px; color: var(--vt-accent); }
+.vt-sk .card .desc { color: var(--vt-muted); font-size: 12px; min-height: 36px; }
+.vt-sk .card .cat {
+ display: inline-block;
+ align-self: flex-start;
+ padding: 2px 8px;
+ border-radius: 999px;
+ background: var(--vt-bg);
+ color: var(--vt-accent);
+ font-size: 10px;
+ text-transform: uppercase;
+ letter-spacing: 0.04em;
+}
+.vt-sk .modal-bg {
+ position: fixed; inset: 0;
+ background: rgba(0,0,0,0.55);
+ display: flex; align-items: center; justify-content: center;
+ z-index: 100;
+}
+.vt-sk .modal {
+ background: #1a1c20;
+ border-radius: 10px;
+ width: min(820px, 92vw);
+ max-height: 88vh;
+ display: flex; flex-direction: column;
+ overflow: hidden;
+ border: 1px solid var(--vt-border);
+}
+.vt-sk .modal-head {
+ display: flex; align-items: center; justify-content: space-between;
+ padding: 14px 18px;
+ border-bottom: 1px solid var(--vt-border);
+}
+.vt-sk .modal-head h3 { margin: 0; font-size: 15px; }
+.vt-sk .modal-body {
+ padding: 14px 18px;
+ overflow: auto;
+ font-size: 12px;
+ white-space: pre-wrap;
+}
+.vt-sk .close-btn {
+ background: transparent;
+ color: var(--vt-muted);
+ border: none;
+ font-size: 20px;
+ cursor: pointer;
+ line-height: 1;
+}
+.vt-sk .empty {
+ color: var(--vt-muted);
+ padding: 24px;
+ text-align: center;
+}
+.vt-sk .meta-count { color: var(--vt-muted); font-size: 12px; }
+</style>
+<script src="shared.js"></script>
+</head>
+<body x-data="vibeTradingSkills()" x-init="init()" class="vt-sk">
+ <h1>Finance Skills
+ <span class="meta-count" x-text="data ? (data.total + ' skills · ' + (cached ? 'cached' : 'live')) : ''"></span>
+ </h1>
+
+ <div class="top">
+ <input type="text" x-model="query" placeholder="Search skills by name or description...">
+ <button @click="refresh(true)" :disabled="loading" style="background: var(--vt-accent); color: white; border: none; border-radius: 6px; padding: 8px 14px; cursor: pointer;">Refresh</button>
+ <a href="/usr/plugins/vibe_trading/dashboard.html" style="color: var(--vt-accent); font-size: 12px;">&larr; Dashboard</a>
+ </div>
+
+ <div class="top">
+ <template x-for="cat in categoryList" :key="cat">
+ <span class="chip" :class="{ active: activeCat === cat }" @click="toggleCat(cat)" x-text="cat"></span>
+ </template>
+ </div>
+
+ <div x-show="loading" class="empty">Loading 79 finance skills from MCP&hellip;</div>
+ <div x-show="!loading && data && filteredCount() === 0" class="empty">No skills match the current filters.</div>
+
+ <div x-show="!loading && filteredCount() > 0" class="grid">
+ <template x-for="sk in pagedSkills()" :key="sk.name">
+ <div class="card" @click="open(sk.name)">
+ <span class="cat" x-text="sk.category"></span>
+ <span class="name" x-text="sk.name"></span>
+ <span class="desc" x-text="sk.description || '(no description)'"></span>
+ </div>
+ </template>
+ </div>
+
+ <div x-show="modal.open" class="modal-bg" @click.self="modal.open = false">
+ <div class="modal">
+ <div class="modal-head">
+ <h3 x-text="modal.name"></h3>
+ <button class="close-btn" @click="modal.open = false">&times;</button>
+ </div>
+ <div class="modal-body" x-text="modal.body"></div>
+ </div>
+ </div>
+
+ <script>
+function vibeTradingSkills() {
+ return {
+ data: null,
+ cached: false,
+ loading: false,
+ query: '',
+ activeCat: 'all',
+ modal: { open: false, name: '', body: '' },
+ get categoryList() {
+ const cats = new Set(['all']);
+ if (this.data && this.data.skills) {
+ for (const s of this.data.skills) cats.add(s.category || 'general');
+ }
+ return Array.from(cats);
+ },
+ init() { this.refresh(false); },
+ toggleCat(cat) { this.activeCat = cat; },
+ filtered() {
+ if (!this.data || !this.data.skills) return [];
+ const q = (this.query || '').toLowerCase();
+ return this.data.skills.filter(s => {
+ const catOk = (this.activeCat === 'all') || (s.category === this.activeCat);
+ const qOk = !q || (s.name.toLowerCase().indexOf(q) !== -1) || (s.description && s.description.toLowerCase().indexOf(q) !== -1);
+ return catOk && qOk;
+ });
+ },
+ filteredCount() { return this.filtered().length; },
+ pagedSkills() {
+ return this.filtered().slice(0, 200);
+ },
+ async refresh(force) {
+ this.loading = true;
+ try {
+ const res = await fetch(window.location.pathname.replace(/skills\.html$/, 'api') + '/', {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+ credentials: 'same-origin',
+ body: JSON.stringify({ action: 'list', force: !!force })
+ });
+ const json = await res.json();
+ if (json && json.ok && json.data && json.data.skills) {
+ this.data = json.data;
+ this.cached = !!json.cached;
+ } else {
+ this.data = { skills: [], total: 0, categories: {}, fetched_at: Date.now() };
+ }
+ } catch (e) {
+ this.data = { skills: [], total: 0, categories: {}, fetched_at: Date.now() };
+ } finally {
+ this.loading = false;
+ }
+ },
+ async open(name) {
+ this.modal.open = true;
+ this.modal.name = name;
+ this.modal.body = 'Loading&hellip;';
+ try {
+ const res = await fetch(window.location.pathname.replace(/skills\.html$/, 'api') + '/', {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+ credentials: 'same-origin',
+ body: JSON.stringify({ action: 'load', name: name })
+ });
+ const json = await res.json();
+ if (json && json.ok) {
+ this.modal.body = json.data.body || json.data.text || '(empty body)';
+ } else {
+ this.modal.body = 'Error: ' + (json && json.error || 'unknown');
+ }
+ } catch (e) {
+ this.modal.body = 'Network error: ' + e.message;
+ }
+ }
+ };
+}
+</script>
+</body>
+</html>

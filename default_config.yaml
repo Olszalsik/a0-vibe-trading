@@ -1,0 +1,78 @@
+# Vibe-Trading — default plugin settings
+#
+# This file is the lowest-priority fallback; user settings in
+# usr/plugins/vibe_trading/config.json override these.
+#
+# Settings are surfaced in the Settings UI (settings_sections: [external, mcp, agent]).
+# Do not put secrets here — the user can override them in the UI and they
+# land in /a0/usr/settings.json (excluded from version control by default).
+
+# ---------------------------------------------------------------------------
+# MCP server registration
+# ---------------------------------------------------------------------------
+
+# Master switch: register/unregister the Vibe-Trading MCP server in
+# Agent Zero's mcp_servers settings. When false, the plugin files are
+# installed but the tools are not exposed to the agent.
+mcp_enabled: true
+
+# Optional override of the MCP command. Defaults to the console script
+# installed by `pip install vibe-trading-ai` (vibe-trading-mcp).
+# Set this to a custom command if you wrap the server in a sidecar venv.
+mcp_command: vibe-trading-mcp
+
+# Optional extra args passed to the MCP command (rarely needed).
+mcp_args: []
+
+# ---------------------------------------------------------------------------
+# LLM provider — used by Vibe-Trading's run_swarm multi-agent team feature
+# ---------------------------------------------------------------------------
+# Only `run_swarm` consumes an LLM key. All other 53 MCP tools run
+# key-free for HK/US/crypto and free for A-shares via akshare/baostock.
+# Recommended: deepseek/deepseek-v4-pro via OpenRouter (cheap + strong).
+llm_provider: openrouter
+llm_model: deepseek/deepseek-v4-pro
+temperature: 0.0
+timeout_seconds: 120
+
+# ---------------------------------------------------------------------------
+# Data sources
+# ---------------------------------------------------------------------------
+
+# Tushare Pro token for premium A-share data. Leave empty to use the
+# free akshare/baostock/sina/eastmoney/mootdx chain (auto-fallback).
+tushare_token: ""
+
+# Optional-key US-data providers. Empty = use free yfinance/stooq/yahoo.
+finnhub_api_key: ""
+alphavantage_api_key: ""
+tiingo_api_key: ""
+fmp_api_key: ""
+
+# Optional macro / Chinese-research providers.
+fred_api_key: ""
+iwencai_key: ""
+
+# Opt-in local market-data cache. 1 = cache historical bars under
+# ~/.vibe-trading/cache/loaders/ to skip the network on repeated runs.
+data_cache: 0
+
+# ---------------------------------------------------------------------------
+# Risk and safety guardrails
+# ---------------------------------------------------------------------------
+
+# Risk tier is enforced inside the agent profile context. The MCP server
+# itself never exposes order-placement tools, so this is a soft policy
+# layer the agent must respect (and the user can override per session).
+# Options: research | paper | live
+risk_tier: research
+
+# Hard cap on drawdown before the agent must pause and re-confirm with
+# the user. Used by the agent profile's safety prompts; not enforced
+# at the MCP layer.
+max_drawdown_pct: 20
+
+# Force-shadow-only: even if the user picks a live connector profile,
+# the agent must surface every would-be order for explicit confirmation
+# before any tool is allowed to act on it. Strongly recommended on.
+require_explicit_confirmation: true

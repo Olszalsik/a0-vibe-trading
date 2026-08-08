@@ -1,0 +1,229 @@
+<!--
+  Vibe-Trading — Dashboard (Phase 1, MVP).
+
+  Eight tabs: Overview, Markets, Backtest, Shadow, Alphas, Swarm, Connectors, Settings.
+  All backend calls go to POST /api/plugins/vibe_trading/dashboard with an
+  `action` field. The API contract lives in /api/dashboard.py.
+
+  Phase 1 wires Overview / Markets / Backtest to real handlers
+  (snapshot / quote / backtest). The other 4 tabs are placeholders that
+  point at their Phase 2 endpoints (api/shadow.py, api/alphazoo.py,
+  api/swarms.py, api/connectors.py) so users see what's coming.
+
+  Single-quote string literals throughout (plugin-wide constraint).
+-->
+<div x-data="vibeTradingDashboard()" x-init="init()" class="vt-dashboard">
+
+  <header class="vt-header">
+    <div class="vt-header-titles">
+      <h2>Vibe-Trading Dashboard</h2>
+      <p class="vt-subtitle">Research-only finance tooling for Agent Zero</p>
+    </div>
+    <div class="vt-header-actions">
+      <span class="vt-version-tag" x-text="versionLabel"></span>
+      <button class="vt-btn vt-btn-ghost" @click="refresh()" :disabled="loading">
+        <span x-show="!loading">Refresh</span>
+        <span x-show="loading">Refreshing...</span>
+      </button>
+    </div>
+  </header>
+
+  <nav class="vt-tabs" role="tablist">
+    <template x-for="tab in tabs" :key="tab.id">
+      <button
+        class="vt-tab"
+        :class="{ 'vt-tab-active': activeTab === tab.id }"
+        role="tab"
+        :aria-selected="activeTab === tab.id"
+        @click="activeTab = tab.id"
+      >
+        <span x-text="tab.label"></span>
+        <span class="vt-tab-tag" x-show="tab.phase >= 2">soon</span>
+      </button>
+    </template>
+  </nav>
+
+  <section class="vt-status" x-show="statusMessage" x-transition>
+    <span x-text="statusMessage"></span>
+    <button class="vt-btn vt-btn-text" @click="statusMessage = ''">dismiss</button>
+  </section>
+
+  <!-- =========================================================== -->
+  <!-- OVERVIEW                                                     -->
+  <!-- =========================================================== -->
+  <section class="vt-pane" x-show="activeTab === 'overview'" x-transition>
+    <div class="vt-card-grid">
+      <div class="vt-stat-tile">
+        <div class="vt-stat-label">Plugin version</div>
+        <div class="vt-stat-value" x-text="(overview.stats && overview.stats.version) || '—'"></div>
+      </div>
+      <div class="vt-stat-tile">
+        <div class="vt-stat-label">MCP tools live</div>
+        <div class="vt-stat-value" x-text="overview.tools ? overview.tools.count : '—'"></div>
+        <div class="vt-stat-meta" x-show="overview.tools && overview.tools.error">
+          <span class="vt-warn" x-text="overview.tools.error"></span>
+        </div>
+      </div>
+      <div class="vt-stat-tile">
+        <div class="vt-stat-label">Toggle state</div>
+        <div class="vt-stat-value" x-text="(overview.stats && overview.stats.toggle_state) || '—'"></div>
+      </div>
+      <div class="vt-stat-tile">
+        <div class="vt-stat-label">Package installed</div>
+        <div class="vt-stat-value" x-text="(overview.stats && overview.stats.installed) ? 'yes' : 'no'"></div>
+        <div class="vt-stat-meta" x-show="overview.stats && overview.stats.package_version">
+          v<span x-text="overview.stats.package_version"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="vt-card">
+      <h3>MCP tool list</h3>
+      <p class="vt-meta" x-show="!overview.tools || !overview.tools.names.length">
+        No tools discovered yet — click Refresh, or check the Settings page if the count stays at zero.
+      </p>
+      <div class="vt-tool-grid" x-show="overview.tools && overview.tools.names.length">
+        <template x-for="name in (overview.tools && overview.tools.names) || []" :key="name">
+          <code class="vt-tool-chip" x-text="name"></code>
+        </template>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================== -->
+  <!-- MARKETS                                                      -->
+  <!-- =========================================================== -->
+  <section class="vt-pane" x-show="activeTab === 'markets'" x-transition>
+    <div class="vt-card">
+      <h3>Quote lookup</h3>
+      <p class="vt-meta">Comma-separated symbols. Quote cache TTL is 5s.</p>
+
+      <div class="vt-form-row">
+        <label class="vt-field">
+          <span>Symbols</span>
+          <input
+            type="text"
+            x-model="markets.codesText"
+            placeholder="AAPL.US, 600519.SH, BTC-USDT"
+            @keydown.enter.prevent="fetchQuote()"
+          />
+        </label>
+        <label class="vt-field vt-field-narrow">
+          <span>Source</span>
+          <select x-model="markets.source">
+            <template x-for="opt in sourceOptions" :key="opt">
+              <option :value="opt" x-text="opt"></option>
+            </template>
+          </select>
+        </label>
+        <button class="vt-btn vt-btn-primary" @click="fetchQuote()" :disabled="markets.loading">
+          <span x-show="!markets.loading">Get quotes</span>
+          <span x-show="markets.loading">Working...</span>
+        </button>
+      </div>
+
+      <div x-show="markets.error" class="vt-error" x-text="markets.error"></div>
+
+      <div class="vt-quote-grid" x-show="markets.quotes && markets.quotes.length">
+        <template x-for="row in markets.quotes" :key="row.code">
+          <div class="vt-quote-card">
+            <div class="vt-quote-code" x-text="row.code"></div>
+            <div class="vt-quote-price" x-text="formatPrice(row.last)"></div>
+            <div class="vt-quote-change" :class="row.change_pct >= 0 ? 'vt-up' : 'vt-down'">
+              <span x-text="(row.change_pct >= 0 ? '+' : '') + formatPct(row.change_pct)"></span>
+            </div>
+            <svg class="vt-sparkline" :viewBox="'0 0 100 30'" preserveAspectRatio="none">
+              <polyline
+                :points="sparklinePoints(row.spark)
+                " fill="none"
+                :stroke="row.change_pct >= 0 ? '#22c55e' : '#ef4444'"
+                stroke-width="1.5"
+              ></polyline>
+            </svg>
+          </div>
+        </template>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================== -->
+  <!-- BACKTEST                                                     -->
+  <!-- =========================================================== -->
+  <section class="vt-pane" x-show="activeTab === 'backtest'" x-transition>
+    <div class="vt-card">
+      <h3>Run a vectorised backtest</h3>
+      <p class="vt-meta">
+        Pass an absolute <code>run_dir</code> that already contains
+        <code>config.json</code> and <code>code/signal_engine.py</code>.
+        The MCP <code>backtest</code> tool writes metrics into that directory.
+      </p>
+
+      <div class="vt-form-row">
+        <label class="vt-field">
+          <span>run_dir</span>
+          <input type="text" x-model="backtest.runDir" placeholder="/a0/usr/workdir/runs/my_strategy" />
+        </label>
+        <button class="vt-btn vt-btn-primary" @click="runBacktest()" :disabled="backtest.loading">
+          <span x-show="!backtest.loading">Run</span>
+          <span x-show="backtest.loading">Running...</span>
+        </button>
+      </div>
+
+      <div x-show="backtest.error" class="vt-error" x-text="backtest.error"></div>
+
+      <div class="vt-result" x-show="backtest.result">
+        <h4>Result</h4>
+        <pre x-text="JSON.stringify(backtest.result, null, 2)"></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================== -->
+  <!-- PLACEHOLDERS for Phase 2 surfaces                            -->
+  <!-- =========================================================== -->
+  <section class="vt-pane" x-show="activeTab === 'shadow'" x-transition>
+    <div class="vt-card">
+      <h3>Shadow Account loop</h3>
+      <p class="vt-meta">Journal → strategy extraction → backtest → report → signal scan.</p>
+      <p class="vt-placeholder">Full handler ships in v0.2.0 (api/shadow.py).</p>
+    </div>
+  </section>
+
+  <section class="vt-pane" x-show="activeTab === 'alphas'" x-transition>
+    <div class="vt-card">
+      <h3>Alpha Zoo</h3>
+      <p class="vt-meta">452 pre-built alphas across qlib158, alpha101, gtja191, academic.</p>
+      <p class="vt-placeholder">Full handler ships in v0.2.0 (api/alphazoo.py).</p>
+    </div>
+  </section>
+
+  <section class="vt-pane" x-show="activeTab === 'swarm'" x-transition>
+    <div class="vt-card">
+      <h3>Swarm presets</h3>
+      <p class="vt-meta">29 multi-agent teams (investment committee, quant desk, risk committee, ...).</p>
+      <p class="vt-placeholder">Full handler ships in v0.2.0 (api/swarms.py).</p>
+    </div>
+  </section>
+
+  <section class="vt-pane" x-show="activeTab === 'connectors'" x-transition>
+    <div class="vt-card">
+      <h3>Trading connectors</h3>
+      <p class="vt-meta">Read-only views of IBKR / Robinhood / Futu / Trading212 profiles.</p>
+      <p class="vt-placeholder">Full handler ships in v0.2.0 (api/connectors.py).</p>
+    </div>
+  </section>
+
+  <!-- =========================================================== -->
+  <!-- SETTINGS (link-out)                                          -->
+  <!-- =========================================================== -->
+  <section class="vt-pane" x-show="activeTab === 'settings'" x-transition>
+    <div class="vt-card">
+      <h3>Plugin settings</h3>
+      <p class="vt-meta">Open the full settings page to edit MCP, agent, and data-source tokens.</p>
+      <button class="vt-btn vt-btn-primary" @click="openSettings()">Open settings</button>
+    </div>
+  </section>
+
+
+<script src="shared.js"></script>
+</div>

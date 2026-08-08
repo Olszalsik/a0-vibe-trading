@@ -1,0 +1,100 @@
+<!-- Vibe-Trading -- Shadow Account page. -->
+<div x-data="shadowPage()" x-init="init()" class="vt-page vt-shadow">
+  <header class="vt-page-header">
+    <h2>Shadow Account</h2>
+    <p class="vt-subtitle">5-step loop: journal &rarr; strategy &rarr; backtest &rarr; report &rarr; signals</p>
+  </header>
+  <section class="vt-status" x-show="statusMessage" x-transition>
+    <span x-text="statusMessage"></span>
+    <button class="vt-btn vt-btn-text" @click="statusMessage = ''">dismiss</button>
+  </section>
+  <div class="vt-card">
+    <h3>Run loop</h3>
+    <div class="vt-form-row">
+      <label class="vt-field"><span>Journal file path (CSV/Excel)</span><input type="text" x-model="journalPath" placeholder="/a0/usr/workdir/uploads/my_journal.csv" /></label>
+      <label class="vt-field vt-field-narrow"><span>Min support</span><input type="number" min="1" x-model.number="minSupport" /></label>
+      <label class="vt-field vt-field-narrow"><span>Max rules</span><input type="number" min="1" x-model.number="maxRules" /></label>
+      <label class="vt-field"><span>Markets (comma)</span><input type="text" x-model="marketsText" placeholder="china_a, hk, us, crypto" /></label>
+      <button class="vt-btn vt-btn-primary" @click="runLoop()" :disabled="loading">
+        <span x-show="!loading">Run loop</span>
+        <span x-show="loading">Running...</span>
+      </button>
+    </div>
+  </div>
+  <div class="vt-card" x-show="steps.length">
+    <h3>Pipeline</h3>
+    <table class="vt-table">
+      <thead><tr><th>#</th><th>Step</th><th>Status</th></tr></thead>
+      <tbody>
+        <template x-for="s in steps" :key="s.step">
+          <tr>
+            <td x-text="s.step"></td>
+            <td><code x-text="s.name"></code></td>
+            <td>
+              <span class="vt-tag" x-show="s.ok">ok</span>
+              <span class="vt-tag vt-tag-bad" x-show="!s.ok">fail</span>
+              <span class="vt-warn" x-show="s.error" x-text="s.error"></span>
+            </td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+    <div class="vt-result">
+      <h4>Aggregate</h4>
+      <p x-text="summary"></p>
+      <pre x-text="JSON.stringify(report, null, 2)"></pre>
+    </div>
+  </div>
+</div>
+<script>
+function shadowPage() {
+  return {
+    journalPath: '',
+    minSupport: 3,
+    maxRules: 5,
+    marketsText: 'china_a, hk, us, crypto',
+    statusMessage: '',
+    loading: 0,
+    steps: [],
+    summary: '',
+    report: null,
+    csrf: function() { return ((document.querySelector('meta[name=csrf-token]') || {}).content || ''); },
+    callApi: function(payload) {
+      var self = this;
+      return fetch('/api/plugins/vibe_trading/shadow', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': self.csrf() },
+        body: JSON.stringify(Object.assign({ action: 'run_loop' }, payload || {})),
+      }).then(function(r){ return r.json(); }).catch(function(e){ return { success: 0, error: 'network: ' + (e && e.message) }; });
+    },
+    init: function() {},
+    runLoop: function() {
+      var self = this;
+      if (!this.journalPath) { this.statusMessage = 'enter a journal path'; return; }
+      var markets = this.marketsText.split(',').map(function(s){ return s.trim(); }).filter(Boolean);
+      this.loading = 1; this.steps = []; this.report = null; this.summary = '';
+      this.callApi({
+        journal_path: this.journalPath,
+        min_support: this.minSupport,
+        max_rules: this.maxRules,
+        markets: markets,
+      }).then(function(res) {
+        if (!res || !res.success) {
+          self.statusMessage = 'Run loop failed: ' + ((res && res.error) || 'unknown');
+          self.steps = (res && res.steps) || [];
+          self.loading = 0;
+          return;
+        }
+        self.steps = res.steps || [];
+        self.summary = res.summary || '';
+        self.report = res;
+        self.loading = 0;
+      }).catch(function(e) {
+        self.statusMessage = 'Run loop failed: ' + (e && e.message);
+        self.loading = 0;
+      });
+    }
+  };
+}
+window.shadowPage = shadowPage;
+</script>

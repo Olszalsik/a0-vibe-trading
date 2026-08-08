@@ -1,0 +1,148 @@
+<html>
+<head>
+<title>Vibe-Trading Plugin</title>
+<style>
+.vt-page { max-width: 920px; margin: 0 auto; padding: 24px 16px; font-family: system-ui, -apple-system, sans-serif; line-height: 1.5; }
+.vt-page h1 { margin: 0 0 4px 0; font-size: 22px; }
+.vt-page h1 .vt-tag { font-size: 12px; vertical-align: middle; background: var(--vibe-trading-accent-soft, rgba(79,140,255,0.12)); color: var(--vibe-trading-accent, #4f8cff); padding: 2px 8px; border-radius: 4px; margin-left: 8px; }
+.vt-page h2 { margin: 24px 0 8px 0; font-size: 16px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 4px; }
+.vt-page h3 { margin: 16px 0 6px 0; font-size: 14px; }
+.vt-page p, .vt-page li { font-size: 13px; opacity: 0.9; }
+.vt-page a { color: var(--vibe-trading-accent, #4f8cff); text-decoration: none; }
+.vt-page a:hover { text-decoration: underline; }
+.vt-page code { background: rgba(255,255,255,0.06); padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+.vt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin-top: 8px; }
+.vt-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 10px 12px; }
+.vt-card strong { color: var(--vibe-trading-accent, #4f8cff); font-size: 12px; display: block; margin-bottom: 4px; }
+.vt-card span { font-size: 12px; opacity: 0.85; }
+.vt-tools { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.vt-tools code { font-size: 11px; }
+.vt-status { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px; }
+.vt-status div { font-size: 12px; }
+.vt-status .ok { color: #6dd58c; }
+.vt-status .warn { color: #ffb84d; }
+.vt-status .err { color: #ff6b6b; }
+</style>
+</head>
+<body>
+<div class="vt-page" x-data="{ stats: null, tools: [] }" x-init="
+Promise.all([
+  fetch('/api/plugins/vibe_trading/stats', { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}' }).then(r => r.json()),
+  fetch('/api/plugins/vibe_trading/tools',  { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}' }).then(r => r.json())
+]).then(([s,t]) => { stats = s; tools = (t.tools || []); }).catch(() => {});
+">
+
+<h1>Vibe-Trading <span class="vt-tag">v0.1.10</span></h1>
+<p style="opacity: 0.7; font-size: 12px; margin: 0;">
+Agent Zero plugin wrapping
+<a href="https://github.com/HKUDS/Vibe-Trading" target="_blank" rel="noopener">HKUDS/Vibe-Trading</a>
+— multi-agent LLM finance research with backtesting, factor analysis, options pricing, 18 market data
+sources, 79 finance skills, 452 alphas, 29 swarm teams, and the Shadow Account loop.
+</p>
+
+<!-- =========================================================== -->
+<!-- Live status                                                  -->
+<!-- =========================================================== -->
+<h2>Live status</h2>
+<div class="vt-status">
+<div><strong>vibe-trading-ai:</strong>
+<span :class="stats?.vibe_trading_ai_installed ? 'ok' : 'err'"
+x-text="stats?.vibe_trading_ai_installed ? ('installed ' + stats.vibe_trading_ai_version) : 'NOT installed'"></span></div>
+<div><strong>MCP server:</strong>
+<span :class="stats?.mcp_live_probe?.probed ? 'ok' : 'err'"
+x-text="stats?.mcp_live_probe?.probed ? (stats.mcp_live_probe.tool_count + ' tools live') : 'down'"></span></div>
+<div><strong>Registered:</strong>
+<span :class="stats?.mcp_registered_in_settings ? 'ok' : 'warn'"
+x-text="stats?.mcp_registered_in_settings ? 'yes' : 'no'"></span></div>
+<div><strong>Toggle:</strong> <span x-text="stats?.toggle_state"></span></div>
+<div><strong>Risk tier:</strong> <span x-text="stats?.risk_tier"></span></div>
+</div>
+
+<!-- =========================================================== -->
+<!-- Capability cards                                             -->
+<!-- =========================================================== -->
+<h2>What you can do</h2>
+<div class="vt-grid">
+
+<div class="vt-card">
+<strong>Backtest (7 engines)</strong>
+<span>ChinaA · GlobalEquity · Crypto · ChinaFutures · GlobalFutures · Forex + options portfolio. Auto-fallback across 18 data sources (yfinance, OKX, akshare, baostock, tencent, sina, eastmoney, mootdx, futu, tushare, finnhub, alphavantage, tiingo, fmp, local CSV/Parquet/DuckDB, …).</span>
+</div>
+
+<div class="vt-card">
+<strong>Factor / Alpha research</strong>
+<span>IC + IR + layered backtest on the <strong>Alpha Zoo</strong>: qlib158 (154), alpha101 (101), gtja191 (191), academic (6) = 452 pre-built alphas. One-line CLI bench or programmatic via <code>ZooSignalEngine.from_zoo(...)</code>.</span>
+</div>
+
+<div class="vt-card">
+<strong>Multi-agent swarms (29)</strong>
+<span>Investment Committee (bull/bear → risk → PM), Global Equities Desk, Crypto Trading Desk, Earnings Research, Macro/Rates/FX, Quant Strategy, Risk Committee, + 22 more. <code>run_swarm(preset=..., prompt=...)</code>.</span>
+</div>
+
+<div class="vt-card">
+<strong>Shadow Account</strong>
+<span>Flagship loop: <code>analyze_trade_journal</code> → <code>extract_shadow_strategy</code> → <code>run_shadow_backtest</code> → <code>render_shadow_report</code> → <code>scan_shadow_signals</code>. Behavioural diagnostics, disposition effect, chasing, overtrading, anchoring.</span>
+</div>
+
+<div class="vt-card">
+<strong>Options &amp; chart patterns</strong>
+<span>Black-Scholes pricing + Greeks (delta/gamma/theta/vega/rho), multi-leg payoff diagrams, options chain fetcher, H&amp;S / double-top / triangle / flag detection.</span>
+</div>
+
+<div class="vt-card">
+<strong>Macro &amp; search</strong>
+<span>FRED macro series, A-share natural-language iWenCai search, DuckDuckGo web search, URL &amp; document reader (PDF / DOCX / XLSX / PPTX).</span>
+</div>
+
+</div>
+
+<!-- =========================================================== -->
+<!-- Live tool list                                               -->
+<!-- =========================================================== -->
+<h2>Live MCP tools <small style="opacity:0.6; font-size: 12px;" x-text="'(' + (tools.length || 0) + ' exposed)'"></small></h2>
+<div class="vt-tools">
+<template x-for="t in tools" :key="t">
+<code x-text="t"></code>
+</template>
+</div>
+<p style="opacity: 0.6; font-size: 12px; margin-top: 8px;" x-show="tools.length === 0">
+No tools discovered. Check the <strong>vibe-trading-ai install</strong> status above, or run the
+plugin's <code>execute.py</code> from a terminal for a full health check.
+</p>
+
+<!-- =========================================================== -->
+<!-- Workflow                                                     -->
+<!-- =========================================================== -->
+<h2>Recommended research workflow</h2>
+<ol style="font-size: 13px; padding-left: 20px;">
+<li>Call <code>list_skills</code> to enumerate the 79 finance knowledge skills, then <code>load_skill("&lt;name&gt;")</code> for any technique-heavy question.</li>
+<li>Frame the user's prompt as a research goal with <code>start_research_goal</code>, attach evidence with <code>add_goal_evidence</code> as you go.</li>
+<li>Pull data with <code>get_market_data</code>, <code>get_fund_flow</code>, <code>get_dragon_tiger</code>, <code>get_northbound_flow</code>, <code>get_sec_filings</code>, <code>get_financial_statements</code>, <code>screen_market</code>, <code>web_search</code>, etc.</li>
+<li>Analyse with <code>backtest</code>, <code>factor_analysis</code>, <code>analyze_options</code>, <code>pattern_recognition</code>, <code>analyze_trade_journal</code>.</li>
+<li>Visualise with <code>render_shadow_report</code> (8-section HTML/PDF) or the upstream Vibe-Trading REST frontend.</li>
+<li>Validate with <code>run_shadow_backtest</code> and <code>scan_shadow_signals</code> (research-only).</li>
+</ol>
+
+<!-- =========================================================== -->
+<!-- Safety                                                       -->
+<!-- =========================================================== -->
+<h2 style="color: #ffb84d;">⚠ Safety guardrails (HARD RULES)</h2>
+<ol style="font-size: 13px; padding-left: 20px;">
+<li>The Vibe-Trading MCP server <strong>exposes zero order-placement tools</strong>. <code>trading_*</code> tools are read-only by design.</li>
+<li>Live-trading connector profiles (IBKR local TWS/Gateway, Robinhood MCP OAuth, Futu, Trading 212) are opt-in via the upstream CLI, not via MCP.</li>
+<li><code>run_swarm</code> costs LLM tokens — always confirm with the user before spawning a multi-agent team.</li>
+<li>Always cite data source + timestamp in the final answer. Distinguish live-data facts, backtest results, and alpha-zoo statistics.</li>
+<li>Never claim live-trading readiness from a backtest alone. Surface overfitting, regime change, and survivorship bias explicitly.</li>
+</ol>
+
+<h2>Links</h2>
+<ul style="font-size: 13px; padding-left: 20px;">
+<li><a href="https://github.com/HKUDS/Vibe-Trading" target="_blank" rel="noopener">Upstream repo</a></li>
+<li><a href="https://vibetrading.wiki/docs/" target="_blank" rel="noopener">Upstream docs</a></li>
+<li><a href="https://pypi.org/project/vibe-trading-ai/" target="_blank" rel="noopener">PyPI package</a></li>
+<li><a href="/plugins/vibe_trading/config.html" target="_blank">Plugin settings</a></li>
+</ul>
+
+</div>
+</body>
+</html>
