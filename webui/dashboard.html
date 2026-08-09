@@ -222,8 +222,158 @@
       <p class="vt-meta">Open the full settings page to edit MCP, agent, and data-source tokens.</p>
       <button class="vt-btn vt-btn-primary" @click="openSettings()">Open settings</button>
     </div>
-  </section>
+  
+<!-- vibe-trading:phase5b-settings -->
+<div class="vt-card">
+<h3>UI preferences</h3>
+<p class="vt-meta">Backup or restore your dashboard preferences (last tab, search filters, last symbol).</p>
+<button class="vt-btn vt-btn-ghost" id="vt-export-prefs">Export preferences</button>
+<button class="vt-btn vt-btn-ghost" id="vt-import-prefs">Import preferences</button>
+<input type="file" id="vt-import-file" accept=".json,application/json" style="display:none">
+<p class="vt-meta" id="vt-prefs-status" style="margin-top: 8px"></p>
+</div>
+
+<div class="vt-card">
+<h3>Keyboard shortcuts</h3>
+<p class="vt-meta">Press <kbd>?</kbd> on any page for the full shortcut list.</p>
+<ul class="vt-shortcut-list">
+<li><kbd>g o</kbd> Overview tab</li>
+<li><kbd>g m</kbd> Markets tab</li>
+<li><kbd>g b</kbd> Backtest tab</li>
+<li><kbd>g s</kbd> Skills page</li>
+<li><kbd>g dd</kbd> Deep Dive page</li>
+<li><kbd>r</kbd> Refresh current view</li>
+<li><kbd>Esc</kbd> Dismiss toasts / close help</li>
+</ul>
+</div>
+
+</section>
 
 
 <script src="shared.js"></script>
+
+<!-- vibe-trading:phase5b shortcuts + persistence + toasts -->
+<script>
+(function () {
+  function whenAlpineReady(cb) {
+    if (window.Alpine && document.querySelector('[x-data*="vibeTradingDashboard"]')) {
+      try { cb(); return; } catch (e) { console.warn('[VibeTrading] phase5b init failed:', e); }
+    }
+    document.addEventListener('alpine:initialized', function () {
+      try { cb(); } catch (e) { console.warn('[VibeTrading] phase5b init failed:', e); }
+    }, { once: true });
+  }
+
+  function gotoTab(name) {
+    var root = document.querySelector('[x-data*="vibeTradingDashboard"]');
+    if (!root || !window.Alpine) return;
+    try {
+      var data = window.Alpine.$data(root);
+      if (data && data.activeTab !== undefined) data.activeTab = name;
+    } catch (e) {}
+  }
+
+  function callRefresh() {
+    var root = document.querySelector('[x-data*="vibeTradingDashboard"]');
+    if (!root || !window.Alpine) return;
+    try {
+      var data = window.Alpine.$data(root);
+      if (data && typeof data.refresh === 'function') data.refresh();
+    } catch (e) {}
+  }
+
+  whenAlpineReady(function () {
+    if (window.VibeTrading && typeof window.VibeTrading.registerShortcuts === 'function') {
+      window.VibeTrading.registerShortcuts({
+        'g o': { description: 'Overview tab', handler: function () { gotoTab('overview'); } },
+        'g m': { description: 'Markets tab', handler: function () { gotoTab('markets'); } },
+        'g b': { description: 'Backtest tab', handler: function () { gotoTab('backtest'); } },
+        'g sh': { description: 'Shadow tab', handler: function () { gotoTab('shadow'); } },
+        'g al': { description: 'Alphas tab', handler: function () { gotoTab('alphas'); } },
+        'g sw': { description: 'Swarm tab', handler: function () { gotoTab('swarm'); } },
+        'g c': { description: 'Connectors tab', handler: function () { gotoTab('connectors'); } },
+        'g st': { description: 'Settings tab', handler: function () { gotoTab('settings'); } },
+        'g dd': { description: 'Open Deep Dive page', handler: function () { window.location.href = '/usr/plugins/vibe_trading/webui/deepdive.html'; } },
+        'g s': { description: 'Open Skills page', handler: function () { window.location.href = '/usr/plugins/vibe_trading/webui/skills.html'; } },
+        'r': { description: 'Refresh current tab', handler: callRefresh }
+      });
+    }
+
+    // Persist last-active tab across reloads
+    var root = document.querySelector('[x-data*="vibeTradingDashboard"]');
+    if (root && window.Alpine && window.VibeTrading) {
+      var data = window.Alpine.$data(root);
+      var saved = window.VibeTrading.recall('dashboard.lastTab', null);
+      if (saved && data && data.activeTab !== undefined) data.activeTab = saved;
+      if (data && typeof data.refresh === 'function') {
+        try {
+          window.Alpine.effect(function () {
+            var t = data.activeTab;
+            if (t) window.VibeTrading.persist('dashboard.lastTab', t);
+          });
+        } catch (e) {}
+      }
+    }
+  });
+})();
+</script>
 </div>
+
+
+<!-- vibe-trading:phase5b-settings-script -->
+<script>
+(function () {
+  function whenReady(cb) {
+    if (window.VibeTrading && document.readyState === 'complete') { try { cb(); return; } catch (e) {} }
+    document.addEventListener('DOMContentLoaded', function () { try { cb(); } catch (e) {} });
+    window.addEventListener('load', function () { try { cb(); } catch (e) {} });
+  }
+  whenReady(function () {
+    var exportBtn = document.getElementById('vt-export-prefs');
+    var importBtn = document.getElementById('vt-import-prefs');
+    var importFile = document.getElementById('vt-import-file');
+    var status = document.getElementById('vt-prefs-status');
+    if (!window.VibeTrading) return;
+    if (exportBtn) {
+      exportBtn.addEventListener('click', function () {
+        try {
+          var json = window.VibeTrading.exportPrefs();
+          var blob = new Blob([json], { type: 'application/json' });
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = 'vibe_trading_prefs_' + new Date().toISOString().slice(0, 10) + '.json';
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(function () { URL.revokeObjectURL(url); document.body.removeChild(a); }, 0);
+          if (status) status.textContent = 'Exported ' + Object.keys(JSON.parse(json)).length + ' preferences.';
+          window.VibeTrading.toast('Preferences exported', 'success', 2000);
+        } catch (e) {
+          if (status) status.textContent = 'Export failed: ' + (e && e.message || '?');
+          window.VibeTrading.toast('Export failed', 'error');
+        }
+      });
+    }
+    if (importBtn && importFile) {
+      importBtn.addEventListener('click', function () { importFile.click(); });
+      importFile.addEventListener('change', function (e) {
+        var file = e.target.files && e.target.files[0];
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function () {
+          try {
+            var json = String(reader.result || '');
+            window.VibeTrading.importPrefs(json);
+            if (status) status.textContent = 'Imported. Reload to apply.';
+            window.VibeTrading.toast('Preferences imported', 'success', 2500);
+          } catch (err) {
+            if (status) status.textContent = 'Import failed: ' + (err && err.message || '?');
+            window.VibeTrading.toast('Import failed', 'error');
+          }
+        };
+        reader.readAsText(file);
+      });
+    }
+  });
+})();
+</script>

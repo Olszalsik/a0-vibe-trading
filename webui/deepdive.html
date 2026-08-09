@@ -251,5 +251,70 @@ function vibeTradingDeepDive() {
  };
 }
 </script>
+
+<!-- vibe-trading:phase5b shortcuts + persistence + toasts -->
+<script>
+(function () {
+  function whenAlpineReady(cb) {
+    if (window.Alpine && document.querySelector('[x-data*="vibeTradingDeepDive"]')) {
+      try { cb(); return; } catch (e) { console.warn('[VibeTrading] phase5b init failed:', e); }
+    }
+    document.addEventListener('alpine:initialized', function () {
+      try { cb(); } catch (e) { console.warn('[VibeTrading] phase5b init failed:', e); }
+    }, { once: true });
+  }
+
+  whenAlpineReady(function () {
+    var root = document.querySelector('[x-data*="vibeTradingDeepDive"]');
+    if (!root || !window.Alpine || !window.VibeTrading) return;
+    var data = window.Alpine.$data(root);
+
+    // Restore persisted symbol if no URL param was provided
+    try {
+      var params = new URLSearchParams(window.location.search);
+      var fromUrl = params.get('symbol');
+      if (!fromUrl) {
+        var saved = window.VibeTrading.recall('deepdive.lastSymbol', '');
+        if (saved && data) data.symbol = saved;
+      }
+    } catch (e) {}
+
+    // Persist symbol on change
+    try {
+      window.Alpine.effect(function () {
+        if (data && data.symbol) window.VibeTrading.persist('deepdive.lastSymbol', data.symbol);
+      });
+    } catch (e) {}
+
+    // Toast on fetch success
+    if (typeof data.fetch === 'function') {
+      var origFetch = data.fetch.bind(data);
+      data.fetch = function (force) {
+        var promise = origFetch(force);
+        if (promise && typeof promise.then === 'function') {
+          promise.then(function () {
+            if (data.result && data.result.ok) {
+              window.VibeTrading.toast('Deep dive complete for ' + (data.symbol || '?'), 'success', 2500);
+            } else {
+              window.VibeTrading.toast('Deep dive failed', 'error');
+            }
+          }).catch(function (e) {
+            window.VibeTrading.toast('Deep dive error: ' + (e && e.message || '?'), 'error');
+          });
+        }
+        return promise;
+      };
+    }
+
+    // Register shortcuts
+    window.VibeTrading.registerShortcuts({
+      'g d': { description: 'Open Dashboard', handler: function () { window.location.href = '/usr/plugins/vibe_trading/dashboard.html'; } },
+      'g s': { description: 'Open Skills', handler: function () { window.location.href = '/usr/plugins/vibe_trading/webui/skills.html'; } },
+      'r': { description: 'Refresh deep dive', handler: function () { if (typeof data.fetch === 'function') data.fetch(true); } }
+    });
+  });
+})();
+</script>
+
 </body>
 </html>

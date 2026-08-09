@@ -240,5 +240,63 @@ function vibeTradingSkills() {
  };
 }
 </script>
+
+<!-- vibe-trading:phase5b shortcuts + persistence + toasts -->
+<script>
+(function () {
+  function whenAlpineReady(cb) {
+    if (window.Alpine && document.querySelector('[x-data*="vibeTradingSkills"]')) {
+      try { cb(); return; } catch (e) { console.warn('[VibeTrading] phase5b init failed:', e); }
+    }
+    document.addEventListener('alpine:initialized', function () {
+      try { cb(); } catch (e) { console.warn('[VibeTrading] phase5b init failed:', e); }
+    }, { once: true });
+  }
+
+  whenAlpineReady(function () {
+    var root = document.querySelector('[x-data*="vibeTradingSkills"]');
+    if (!root || !window.Alpine || !window.VibeTrading) return;
+    var data = window.Alpine.$data(root);
+
+    // Restore persisted query + activeCat
+    var savedQuery = window.VibeTrading.recall('skills.query', '');
+    var savedCat = window.VibeTrading.recall('skills.activeCat', 'all');
+    if (savedQuery && data) data.query = savedQuery;
+    if (savedCat && data) data.activeCat = savedCat;
+
+    // Persist on change
+    try {
+      window.Alpine.effect(function () {
+        if (data.query !== undefined) window.VibeTrading.persist('skills.query', data.query);
+        if (data.activeCat !== undefined) window.VibeTrading.persist('skills.activeCat', data.activeCat);
+      });
+    } catch (e) {}
+
+    // Toast on refresh success
+    if (typeof data.refresh === 'function') {
+      var origRefresh = data.refresh.bind(data);
+      data.refresh = function (force) {
+        var promise = origRefresh(force);
+        if (promise && typeof promise.then === 'function') {
+          promise.then(function () {
+            window.VibeTrading.toast('Skills refreshed', 'success', 2000);
+          }).catch(function (e) {
+            window.VibeTrading.toast('Skills refresh failed: ' + (e && e.message || '?'), 'error');
+          });
+        }
+        return promise;
+      };
+    }
+
+    // Register shortcuts
+    window.VibeTrading.registerShortcuts({
+      'g d': { description: 'Open Dashboard', handler: function () { window.location.href = '/usr/plugins/vibe_trading/dashboard.html'; } },
+      'g dd': { description: 'Open Deep Dive', handler: function () { window.location.href = '/usr/plugins/vibe_trading/webui/deepdive.html'; } },
+      'r': { description: 'Refresh skills list', handler: function () { if (typeof data.refresh === 'function') data.refresh(true); } }
+    });
+  });
+})();
+</script>
+
 </body>
 </html>
