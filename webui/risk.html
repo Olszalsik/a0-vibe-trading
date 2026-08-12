@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>VT Risk Guard</title>
+<style>
+:root {
+ --vt-accent: #4f8cff;
+ --vt-accent-soft: rgba(79, 140, 255, 0.12);
+ --vt-bg: #f7f8fb;
+ --vt-fg: #1a1f2c;
+ --vt-muted: #6b7488;
+ --vt-card: #ffffff;
+ --vt-border: #e5e8ef;
+ --vt-success: #2e7d32;
+ --vt-warn: #f57c00;
+ --vt-danger: #c62828;
+}
+body { font-family: -apple-system, system-ui, sans-serif; background: var(--vt-bg); color: var(--vt-fg); margin: 0; padding: 24px; max-width: 1000px; margin-left: auto; margin-right: auto; }
+h1 { margin: 0 0 8px; }
+h1 .meta-count { font-size: 13px; color: var(--vt-muted); font-weight: normal; margin-left: 8px; }
+.row { display: flex; gap: 8px; align-items: center; margin: 12px 0 24px; flex-wrap: wrap; }
+input[type="text"] { padding: 8px 12px; border: 1px solid var(--vt-border); border-radius: 6px; min-width: 200px; font-size: 14px; }
+button { background: var(--vt-accent); color: white; border: none; border-radius: 6px; padding: 8px 14px; cursor: pointer; font-size: 14px; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+a.back { color: var(--vt-accent); font-size: 12px; text-decoration: none; }
+.banner { padding: 16px 20px; border-radius: 10px; margin: 16px 0 24px; color: white; }
+.banner h2 { margin: 0 0 4px; font-size: 18px; }
+.banner p { margin: 0; opacity: 0.95; font-size: 14px; line-height: 1.5; }
+.card { background: var(--vt-card); border: 1px solid var(--vt-border); border-radius: 10px; padding: 16px 20px; margin: 12px 0; }
+.card h3 { margin: 0 0 8px; font-size: 15px; }
+.card p { margin: 0 0 12px; font-size: 13px; color: var(--vt-muted); line-height: 1.5; }
+.kbd { background: #f0f2f7; border: 1px solid var(--vt-border); border-bottom-width: 2px; padding: 1px 6px; border-radius: 4px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--vt-border); }
+th { background: #f0f2f7; font-weight: 600; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.badge-research { background: #e8f5e9; color: var(--vt-success); }
+.badge-paper { background: #fff3e0; color: var(--vt-warn); }
+.badge-live { background: #ffebee; color: var(--vt-danger); }
+.badge-cached { background: #f0f2f7; color: var(--vt-muted); }
+pre { background: #1a1f2c; color: #f0f2f7; padding: 12px; border-radius: 6px; overflow-x: auto; font-size: 12px; line-height: 1.5; }
+.simulate-actions { background: #f0f2f7; padding: 12px; border-radius: 6px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+.toggle-row { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
+.toggle-row select { padding: 6px 10px; border: 1px solid var(--vt-border); border-radius: 6px; font-size: 13px; }
+</style>
+<script src="shared.js"></script>
+</head>
+<body x-data="vibeTradingRisk()" x-init="init()" class="vt-risk">
+
+<h1>VT Risk Guard
+<span class="meta-count" x-text="headerMeta"></span>
+</h1>
+
+<div class="row">
+<a href="/usr/plugins/vibe_trading/dashboard.html" class="back">&larr; Dashboard</a>
+<button @click="refresh(true)" :disabled="loading" style="margin-left: auto;">Refresh</button>
+</div>
+
+<!-- Risk tier banner -->
+<div class="banner" :style="'background:' + (state && state.banner_color || '#666')">
+<h2>Current risk tier: <span x-text="state ? state.risk_tier : '...'"></span></h2>
+<p x-text="state ? state.risk_tier_description : 'Loading...'" id="vt-tier-desc"></p>
+</div>
+
+<!-- State card -->
+<div class="card">
+<h3>State</h3>
+<p>Live snapshot from <span class="kbd" x-text="state ? state.config_resolved_from : '?'"></span>. Cached for 60 s.</p>
+<table>
+<tr><th>Field</th><th>Value</th></tr>
+<tr><td>risk_tier</td><td><span class="badge" :class="'badge-' + (state ? state.risk_tier : 'research')" x-text="state ? state.risk_tier : '?'"></span></td></tr>
+<tr><td>is_research_default</td><td x-text="state ? String(state.is_research_default) : '?'"></td></tr>
+<tr><td>order_placement_enabled</td><td x-text="state ? String(state.order_placement_enabled) : '?'"></td></tr>
+<tr><td>live_order_enabled</td><td x-text="state ? String(state.live_order_enabled) : '?'"></td></tr>
+<tr><td>require_explicit_confirmation</td><td x-text="state ? String(state.require_explicit_confirmation) : '?'"></td></tr>
+<tr><td>cached</td><td><span class="badge badge-cached" x-text="state ? String(state.cached) : '?'"></span></td></tr>
+</table>
+</div>
+
+<!-- Connectors card -->
+<div class="card">
+<h3>Available broker connectors (read-only)</h3>
+<p>Surfaces the upstream MCP `trading_connections` tool result. No orders placed. Cached for 5 min.</p>
+<div x-show="loading" style="color: var(--vt-muted)">Loading connectors...</div>
+<pre x-show="!loading && connectorsRaw" x-text="connectorsRaw"></pre>
+</div>
+
+<!-- Simulate promotion -->
+<div class="card">
+<h3>Simulate a promotion</h3>
+<p>Dry-run what would happen if you changed the risk tier. Nothing changes until you edit plugin config (or set <span class="kbd">VIBE_TRADING_RISK_TIER</span>) and restart Agent Zero.</p>
+<div class="toggle-row">
+<label for="vt-sim-target">Target tier:</label>
+<select id="vt-sim-target" x-model="simTarget">
+<option value="research">research</option>
+<option value="paper">paper</option>
+<option value="live">live</option>
+</select>
+<button @click="runSimulate()" :disabled="simLoading">Run simulation</button>
+</div>
+<div x-show="simResult" class="simulate-actions" x-text="simResult"></div>
+</div>
+
+<!-- Opt-in instructions -->
+<div class="card">
+<h3>Opting into paper or live</h3>
+<p>By default the plugin is locked to <strong>research</strong>. To move to <strong>paper</strong> or <strong>live</strong>, take these steps in order:</p>
+<ol style="margin: 0 0 12px 20px; font-size: 13px; line-height: 1.7;">
+<li>Edit <span class="kbd">/a0/usr/plugins/vibe_trading/config.json</span> (or <span class="kbd">default_config.yaml</span>): set <span class="kbd">risk_tier</span> to <span class="kbd">paper</span> or <span class="kbd">live</span>. Or set env <span class="kbd">VIBE_TRADING_RISK_TIER=paper</span> before starting Agent Zero.</li>
+<li>Keep <span class="kbd">require_explicit_confirmation: true</span> so the gate blocks any live order until you say OK per action.</li>
+<li>Restart Agent Zero so <span class="kbd">hooks.py</span> re-registers the MCP server with the new tier.</li>
+<li>Open the <strong>Connectors</strong> tab on the dashboard and verify the brokers you want to enable are listed as reachable (use <span class="kbd">check_broker</span> below to deep-check one).</li>
+<li>Test in <strong>paper</strong> first. Promote to <strong>live</strong> only after you have run the strategy in paper for a meaningful period.</li>
+</ol>
+</div>
+
+<!-- Check broker card -->
+<div class="card">
+<h3>Check one broker</h3>
+<p>Proxies the MCP <span class="kbd">trading_check</span> tool for a single connector id (e.g. <span class="kbd">ibkr-paper-local</span>, <span class="kbd">futu</span>, <span class="kbd">trading212</span>, <span class="kbd">robinhood-mcp-oauth</span>).</p>
+<div class="toggle-row">
+<input type="text" x-model="checkBroker" placeholder="broker connector id">
+<button @click="runCheck()" :disabled="checkLoading">Check</button>
+</div>
+<pre x-show="checkResult" x-text="checkResult"></pre>
+</div>
+
+<!-- Shortcut help card -->
+<div class="card">
+<h3>Keyboard shortcuts</h3>
+<p>Press <span class="kbd">?</span> anywhere for the help modal.</p>
+<ul style="margin: 0 0 0 20px; font-size: 13px; line-height: 1.7;">
+<li><span class="kbd">?</span> Open help modal</li>
+<li><span class="kbd">Esc</span> Dismiss toasts / close help</li>
+<li><span class="kbd">r</span> Refresh this page</li>
+<li><span class="kbd">g d</span> Open Dashboard</li>
+<li><span class="kbd">g dd</span> Open Deep Dive</li>
+<li><span class="kbd">g s</span> Open Skills</li>
+</ul>
+</div>
+
+<script>
+function vibeTradingRisk() {
+ return {
+ state: null,
+ connectorsRaw: '',
+ loading: false,
+ simTarget: 'paper',
+ simResult: '',
+ simLoading: false,
+ checkBroker: '',
+ checkLoading: false,
+ checkResult: '',
+ get headerMeta() { return this.loading ? 'loading...' : (this.state ? (this.state.cached ? 'cached' : 'live') : ''); },
+ async init() {
+ var self = this;
+ await this.refresh(false);
+ if (window.VibeTrading) {
+ try {
+ var saved = window.VibeTrading.recall('risk.simTarget', '');
+ if (saved) this.simTarget = saved;
+ window.VibeTrading.registerShortcuts({
+ 'g d': { description: 'Open Dashboard', handler: function () { window.location.href = '/usr/plugins/vibe_trading/dashboard.html'; } },
+ 'g dd': { description: 'Open Deep Dive', handler: function () { window.location.href = '/usr/plugins/vibe_trading/webui/deepdive.html'; } },
+ 'g s': { description: 'Open Skills', handler: function () { window.location.href = '/usr/plugins/vibe_trading/webui/skills.html'; } },
+ 'r': { description: 'Refresh risk guard', handler: function () { self.refresh(true); } }
+ });
+ } catch (e) { console.warn('[VibeTrading] risk init failed:', e); }
+ }
+ },
+ async refresh(force) {
+ this.loading = true;
+ try {
+ var r1 = await fetch('/api/plugins/vibe_trading/risk_guard', {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({ action: 'state' })
+ });
+ var j1 = await r1.json();
+ if (j1 && j1.ok) this.state = j1;
+ var r2 = await fetch('/api/plugins/vibe_trading/risk_guard', {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({ action: 'connectors' })
+ });
+ var j2 = await r2.json();
+ if (j2 && j2.ok) this.connectorsRaw = JSON.stringify(j2.connectors, null, 2);
+ else this.connectorsRaw = '(connectors unavailable: ' + (j2 && j2.error || '?') + ')';
+ if (force && window.VibeTrading) window.VibeTrading.toast('Risk guard refreshed', 'success', 2000);
+ } catch (e) {
+ if (window.VibeTrading) window.VibeTrading.toast('Refresh failed: ' + (e && e.message || '?'), 'error');
+ } finally {
+ this.loading = false;
+ }
+ },
+ async runSimulate() {
+ this.simLoading = true;
+ this.simResult = '';
+ try {
+ if (window.VibeTrading) window.VibeTrading.persist('risk.simTarget', this.simTarget);
+ var r = await fetch('/api/plugins/vibe_trading/risk_guard', {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({ action: 'simulate', target_tier: this.simTarget })
+ });
+ var j = await r.json();
+ if (j && j.ok) {
+ var lines = [];
+ lines.push('current_tier: ' + j.current_tier);
+ lines.push('target_tier: ' + j.target_tier);
+ lines.push('require_explicit_confirmation: ' + j.require_explicit_confirmation);
+ lines.push('would_change: ' + j.would_change);
+ lines.push('--- actions ---');
+ (j.actions || []).forEach(function (a) { lines.push('  ' + a); });
+ lines.push('--- note ---');
+ lines.push('  ' + j.note);
+ this.simResult = lines.join('\n');
+ if (window.VibeTrading) window.VibeTrading.toast('Simulation complete', 'info', 2000);
+ } else {
+ this.simResult = 'simulation failed: ' + (j && j.error || '?');
+ }
+ } catch (e) {
+ this.simResult = 'simulation error: ' + (e && e.message || '?');
+ if (window.VibeTrading) window.VibeTrading.toast('Simulation failed', 'error');
+ } finally {
+ this.simLoading = false;
+ }
+ },
+ async runCheck() {
+ if (!this.checkBroker) {
+ if (window.VibeTrading) window.VibeTrading.toast('Enter a broker id', 'warning');
+ return;
+ }
+ this.checkLoading = true;
+ this.checkResult = '';
+ try {
+ var r = await fetch('/api/plugins/vibe_trading/risk_guard', {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({ action: 'check_broker', connection: this.checkBroker })
+ });
+ var j = await r.json();
+ if (j && j.ok) this.checkResult = JSON.stringify(j.result, null, 2);
+ else this.checkResult = 'check failed: ' + (j && j.error || '?');
+ } catch (e) {
+ this.checkResult = 'check error: ' + (e && e.message || '?');
+ } finally {
+ this.checkLoading = false;
+ }
+ }
+ };
+}
+</script>
+</body>
+</html>

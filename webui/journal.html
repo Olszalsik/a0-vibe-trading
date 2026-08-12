@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>VT Journal + Audit Log</title>
+<style>
+:root {
+ --vt-accent: #4f8cff;
+ --vt-accent-soft: rgba(79, 140, 255, 0.12);
+ --vt-bg: #f7f8fb;
+ --vt-fg: #1a1f2c;
+ --vt-muted: #6b7488;
+ --vt-card: #ffffff;
+ --vt-border: #e5e8ef;
+ --vt-success: #2e7d32;
+ --vt-warn: #f57c00;
+ --vt-danger: #c62828;
+}
+body { font-family: -apple-system, system-ui, sans-serif; background: var(--vt-bg); color: var(--vt-fg); margin: 0; padding: 24px; max-width: 1100px; margin-left: auto; margin-right: auto; }
+h1 { margin: 0 0 8px; }
+h1 .meta-count { font-size: 13px; color: var(--vt-muted); font-weight: normal; margin-left: 8px; }
+.row { display: flex; gap: 8px; align-items: center; margin: 12px 0 24px; flex-wrap: wrap; }
+button { background: var(--vt-accent); color: white; border: none; border-radius: 6px; padding: 8px 14px; cursor: pointer; font-size: 14px; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button.ghost { background: transparent; color: var(--vt-accent); border: 1px solid var(--vt-accent); }
+a.back { color: var(--vt-accent); font-size: 12px; text-decoration: none; margin-right: auto; }
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 12px 0; }
+.kpi { background: var(--vt-card); border: 1px solid var(--vt-border); border-radius: 10px; padding: 14px 16px; }
+.kpi-label { font-size: 11px; color: var(--vt-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+.kpi-value { font-size: 22px; font-weight: 700; color: var(--vt-fg); line-height: 1.2; }
+.kpi-value.good { color: var(--vt-success); }
+.kpi-value.bad { color: var(--vt-danger); }
+.kpi-value.warn { color: var(--vt-warn); }
+.card { background: var(--vt-card); border: 1px solid var(--vt-border); border-radius: 10px; padding: 16px 20px; margin: 14px 0; }
+.card h3 { margin: 0 0 8px; font-size: 15px; }
+.card p { margin: 0 0 12px; font-size: 13px; color: var(--vt-muted); line-height: 1.5; }
+.kbd { background: #f0f2f7; border: 1px solid var(--vt-border); border-bottom-width: 2px; padding: 1px 6px; border-radius: 4px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--vt-border); }
+th { background: #f0f2f7; font-weight: 600; font-size: 12px; }
+td.num { text-align: right; font-family: ui-monospace, Menlo, monospace; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.badge-low { background: #e8f5e9; color: var(--vt-success); }
+.badge-medium { background: #fff3e0; color: var(--vt-warn); }
+.badge-high { background: #ffebee; color: var(--vt-danger); }
+.badge-cached { background: #f0f2f7; color: var(--vt-muted); }
+.badge-pnlpos { color: var(--vt-success); font-weight: 700; }
+.badge-pnlneg { color: var(--vt-danger); font-weight: 700; }
+.badge-research { background: #e8f5e9; color: var(--vt-success); }
+.badge-paper { background: #fff3e0; color: var(--vt-warn); }
+.badge-live { background: #ffebee; color: var(--vt-danger); }
+.empty { color: var(--vt-muted); font-style: italic; padding: 12px; text-align: center; }
+.toolbar { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
+.toolbar input[type="number"] { padding: 6px 10px; border: 1px solid var(--vt-border); border-radius: 6px; width: 80px; font-size: 13px; }
+.toolbar label { font-size: 13px; color: var(--vt-muted); }
+.toggle-row { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
+.toggle-row select, .toggle-row input[type="text"] { padding: 6px 10px; border: 1px solid var(--vt-border); border-radius: 6px; font-size: 13px; }
+.sub-banner { padding: 12px 16px; border-radius: 8px; margin: 12px 0; font-size: 13px; }
+.sub-banner.info { background: var(--vt-accent-soft); color: var(--vt-fg); border-left: 3px solid var(--vt-accent); }
+.sub-banner.warn { background: #fff3e0; color: var(--vt-warn); border-left: 3px solid var(--vt-warn); }
+</style>
+<script src="shared.js"></script>
+</head>
+<body x-data="vibeTradingJournal()" x-init="init()" class="vt-journal">
+
+<h1>VT Journal + Audit Log
+<span class="meta-count" x-text="headerMeta"></span>
+</h1>
+
+<div class="row">
+<a href="/usr/plugins/vibe_trading/dashboard.html" class="back">&larr; Dashboard</a>
+<button @click="refresh(true)" :disabled="loading">Refresh</button>
+</div>
+
+<div x-show="notice" class="sub-banner info" x-text="notice"></div>
+
+<!-- KPI grid -->
+<div class="kpi-grid">
+<div class="kpi">
+<div class="kpi-label">Roundtrips</div>
+<div class="kpi-value" x-text="summary && summary.total_roundtrips !== undefined ? summary.total_roundtrips : '?'"></div>
+</div>
+<div class="kpi">
+<div class="kpi-label">Win rate</div>
+<div class="kpi-value" :class="winRateClass" x-text="summary && summary.win_rate_pct !== undefined ? summary.win_rate_pct + '%' : '?'"></div>
+</div>
+<div class="kpi">
+<div class="kpi-label">Avg PnL%</div>
+<div class="kpi-value" :class="avgPnlClass" x-text="summary && summary.pnl_pct_avg !== undefined ? (summary.pnl_pct_avg >= 0 ? '+' : '') + summary.pnl_pct_avg + '%' : '?'"></div>
+</div>
+<div class="kpi">
+<div class="kpi-label">Avg hold (days)</div>
+<div class="kpi-value" x-text="summary && summary.holding_days_avg !== undefined ? summary.holding_days_avg : '?'"></div>
+</div>
+<div class="kpi">
+<div class="kpi-label">Best symbol</div>
+<div class="kpi-value good" x-text="bestSymLabel"></div>
+</div>
+<div class="kpi">
+<div class="kpi-label">Worst symbol</div>
+<div class="kpi-value bad" x-text="worstSymLabel"></div>
+</div>
+</div>
+
+<!-- Behaviors -->
+<div class="card">
+<h3>Behavior diagnostics</h3>
+<p>Cached for 60 s. Severity is computed locally from the parsed journal rows.</p>
+<table x-show="behaviors && behaviors.behaviors && behaviors.behaviors.length">
+<tr><th>Behavior</th><th>Severity</th><th>Evidence</th></tr>
+<template x-for="b in (behaviors && behaviors.behaviors || [])" :key="b.name">
+<tr>
+<td x-text="b.name"></td>
+<td><span class="badge" :class="'badge-' + b.severity" x-text="b.severity"></span></td>
+<td x-text="b.evidence" style="font-size: 12px; color: var(--vt-muted);"></td>
+</tr>
+</template>
+</table>
+<div class="empty" x-show="!behaviors || !behaviors.behaviors || !behaviors.behaviors.length">No behavior data (no journal rows loaded).</div>
+</div>
+
+<!-- Entries card -->
+<div class="card">
+<h3>Recent journal entries</h3>
+<p>Reads from the user-configured CSV path; falls back to demo rows if none is set.</p>
+<div class="toolbar">
+<label>Max rows:&nbsp;</label>
+<input type="number" x-model.number="maxRows" min="1" max="500" />
+<button @click="loadEntries()">Load</button>
+<span style="color: var(--vt-muted); font-size: 12px;" x-text="entriesMeta"></span>
+</div>
+<table x-show="entries && entries.length">
+<tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Entry</th><th>Exit</th><th>Opened</th><th>Closed</th><th>PnL %</th><th>Held</th><th>Note</th></tr>
+<template x-for="e in entries" :key="e.symbol + e.opened_at">
+<tr>
+<td x-text="e.symbol"></td>
+<td x-text="e.side"></td>
+<td class="num" x-text="e.qty"></td>
+<td class="num" x-text="e.entry_px"></td>
+<td class="num" x-text="e.exit_px"></td>
+<td x-text="e.opened_at"></td>
+<td x-text="e.closed_at"></td>
+<td class="num" :class="(e.pnl_pct >= 0) ? 'badge-pnlpos' : 'badge-pnlneg'" x-text="(e.pnl_pct >= 0 ? '+' : '') + e.pnl_pct + '%'"></td>
+<td class="num" x-text="e.holding_days"></td>
+<td x-text="e.note" style="color: var(--vt-muted); font-size: 12px;"></td>
+</tr>
+</template>
+</table>
+<div class="empty" x-show="!entries || !entries.length">No entries loaded.</div>
+</div>
+
+<!-- Log transition -->
+<div class="card">
+<h3>Record a tier transition (audit log)</h3>
+<p>Appends a row to <span class="kbd">journal_transitions.jsonl</span> at the plugin root. Requires the transition is deliberate -- check the box to confirm.</p>
+<div class="toggle-row">
+<label>From:</label>
+<select x-model="logFrom">
+<option value="research">research</option>
+<option value="paper">paper</option>
+<option value="live">live</option>
+</select>
+<label>To:</label>
+<select x-model="logTo">
+<option value="research">research</option>
+<option value="paper">paper</option>
+<option value="live">live</option>
+</select>
+<input type="text" x-model="logActor" placeholder="actor (your handle)" />
+<input type="text" x-model="logNote" placeholder="note (optional)" />
+<label style="display: flex; align-items: center; gap: 4px;">
+<input type="checkbox" x-model="logConfirmed" /> I confirm
+</label>
+<button @click="logTransition()" :disabled="logLoading || !logConfirmed">Log transition</button>
+</div>
+<div x-show="logResult" class="sub-banner info" x-text="logResult"></div>
+</div>
+
+<!-- Transitions -->
+<div class="card">
+<h3>Tier-transition audit log
+<span class="badge badge-cached" x-text="transitions && transitions.count !== undefined ? transitions.count + ' rows' : '0 rows'"></span>
+</h3>
+<p>Newest first. Read from <span class="kbd">journal_transitions.jsonl</span> at the plugin root.</p>
+<table x-show="transitions && transitions.transitions && transitions.transitions.length">
+<tr><th>Recorded (UTC)</th><th>From</th><th>To</th><th>Actor</th><th>Note</th></tr>
+<template x-for="t in transitions.transitions" :key="t.recorded_at_iso + t.from_tier + t.to_tier">
+<tr>
+<td x-text="t.recorded_at_iso"></td>
+<td><span class="badge" :class="'badge-' + t.from_tier" x-text="t.from_tier"></span></td>
+<td><span class="badge" :class="'badge-' + t.to_tier" x-text="t.to_tier"></span></td>
+<td x-text="t.actor"></td>
+<td x-text="t.note" style="color: var(--vt-muted); font-size: 12px;"></td>
+</tr>
+</template>
+</table>
+<div class="empty" x-show="!transitions || !transitions.transitions || !transitions.transitions.length">No transitions logged yet. Use the form above to record one.</div>
+</div>
+
+<!-- Shortcut help -->
+<div class="card">
+<h3>Keyboard shortcuts</h3>
+<p>Press <span class="kbd">?</span> anywhere for the help modal.</p>
+<ul style="margin: 0 0 0 20px; font-size: 13px; line-height: 1.7;">
+<li><span class="kbd">?</span> Open help modal</li>
+<li><span class="kbd">Esc</span> Dismiss toasts / close help</li>
+<li><span class="kbd">r</span> Refresh this page</li>
+<li><span class="kbd">g d</span> Open Dashboard</li>
+<li><span class="kbd">g dd</span> Open Deep Dive</li>
+<li><span class="kbd">g s</span> Open Skills</li>
+<li><span class="kbd">g rg</span> Open Risk Guard</li>
+</ul>
+</div>
+
+<script>
+function vibeTradingJournal() {
+ return {
+ summary: null,
+ behaviors: null,
+ entries: [],
+ entriesSource: '',
+ transitions: null,
+ loading: false,
+ maxRows: 20,
+ logFrom: 'research',
+ logTo: 'paper',
+ logActor: '',
+ logNote: '',
+ logConfirmed: false,
+ logLoading: false,
+ logResult: '',
+ notice: '',
+ get headerMeta() { return this.loading ? 'loading...' : ''; },
+ get entriesMeta() { return this.entriesSource ? 'source: ' + this.entriesSource : ''; },
+ get bestSymLabel() {
+ var b = this.summary && this.summary.best_symbol;
+ return b ? (b.symbol + ' +' + b.avg_pnl_pct + '%') : '-';
+ },
+ get worstSymLabel() {
+ var b = this.summary && this.summary.worst_symbol;
+ return b ? (b.symbol + ' ' + b.avg_pnl_pct + '%') : '-';
+ },
+ get winRateClass() {
+ var w = this.summary && this.summary.win_rate_pct;
+ if (w === undefined || w === null) return '';
+ if (w >= 55) return 'good';
+ if (w >= 45) return 'warn';
+ return 'bad';
+ },
+ get avgPnlClass() {
+ var p = this.summary && this.summary.pnl_pct_avg;
+ if (p === undefined || p === null) return '';
+ if (p >= 1) return 'good';
+ if (p >= -1) return 'warn';
+ return 'bad';
+ },
+ async init() {
+ var self = this;
+ var savedMax = window.VibeTrading && window.VibeTrading.recall('journal.maxRows', 20);
+ if (savedMax) this.maxRows = savedMax;
+ await this.refresh(false);
+ if (window.VibeTrading) {
+ try {
+ window.VibeTrading.registerShortcuts({
+ 'g d': { description: 'Open Dashboard', handler: function () { window.location.href = '/usr/plugins/vibe_trading/dashboard.html'; } },
+ 'g dd': { description: 'Open Deep Dive', handler: function () { window.location.href = '/usr/plugins/vibe_trading/webui/deepdive.html'; } },
+ 'g s': { description: 'Open Skills', handler: function () { window.location.href = '/usr/plugins/vibe_trading/webui/skills.html'; } },
+ 'g rg': { description: 'Open Risk Guard', handler: function () { window.location.href = '/usr/plugins/vibe_trading/webui/risk.html'; } },
+ 'r': { description: 'Refresh journal', handler: function () { self.refresh(true); } }
+ });
+ } catch (e) { console.warn('[VibeTrading] journal init failed:', e); }
+ }
+ },
+ async refresh(force) {
+ this.loading = true;
+ try {
+ var r1 = await fetch('/api/plugins/vibe_trading/journal', {
+ method: 'POST', headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({ action: 'summary' })
+ });
+ var j1 = await r1.json();
+ if (j1 && j1.ok) this.summary = j1.summary;
+ else this.notice = 'summary failed: ' + (j1 && j1.error || '?');
+ var r2 = await fetch('/api/plugins/vibe_trading/journal', {
+ method: 'POST', headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({ action: 'behaviors' })
+ });
+ var j2 = await r2.json();
+ if (j2 && j2.ok) this.behaviors = j2.behaviors;
+ await this.loadEntries();
+ var r4 = await fetch('/api/plugins/vibe_trading/journal', {
+ method: 'POST', headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({ action: 'transitions' })
+ });
+ var j4 = await r4.json();
+ if (j4 && j4.ok) this.transitions = j4;
+ if (force && window.VibeTrading) window.VibeTrading.toast('Journal refreshed', 'success', 2000);
+ } catch (e) {
+ if (window.VibeTrading) window.VibeTrading.toast('Refresh failed: ' + (e && e.message || '?'), 'error');
+ } finally {
+ this.loading = false;
+ }
+ },
+ async loadEntries() {
+ try {
+ if (window.VibeTrading) window.VibeTrading.persist('journal.maxRows', this.maxRows);
+ var r = await fetch('/api/plugins/vibe_trading/journal', {
+ method: 'POST', headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({ action: 'entries', max_rows: this.maxRows })
+ });
+ var j = await r.json();
+ if (j && j.ok) {
+ this.entries = j.entries || [];
+ this.entriesSource = j.source;
+ } else {
+ this.entries = [];
+ this.entriesSource = 'load_error: ' + (j && j.error || '?');
+ }
+ } catch (e) {
+ this.entries = [];
+ this.entriesSource = 'fetch_error: ' + (e && e.message || '?');
+ }
+ },
+ async logTransition() {
+ if (!this.logConfirmed) {
+ if (window.VibeTrading) window.VibeTrading.toast('Please confirm the transition', 'warning');
+ return;
+ }
+ this.logLoading = true;
+ this.logResult = '';
+ try {
+ var r = await fetch('/api/plugins/vibe_trading/journal', {
+ method: 'POST', headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({
+ action: 'log_transition',
+ from_tier: this.logFrom,
+ to_tier: this.logTo,
+ actor: this.logActor,
+ note: this.logNote,
+ confirmed: true
+ })
+ });
+ var j = await r.json();
+ if (j && j.ok) {
+ this.logResult = 'logged: ' + JSON.stringify(j.logged);
+ if (window.VibeTrading) window.VibeTrading.toast('Transition logged', 'success', 2000);
+ await this.refresh(false);
+ } else {
+ this.logResult = 'failed: ' + (j && j.error || '?');
+ if (window.VibeTrading) window.VibeTrading.toast('Log transition failed', 'error');
+ }
+ } catch (e) {
+ this.logResult = 'error: ' + (e && e.message || '?');
+ } finally {
+ this.logLoading = false;
+ }
+ }
+ };
+}
+</script>
+</body>
+</html>
