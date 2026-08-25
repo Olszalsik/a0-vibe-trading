@@ -13,6 +13,10 @@ config.json.before-*.bak
 .toggle-*
 .disabled
 
+# --- Uploaded journal CSVs (runtime user data, never publish) ----------------
+# api/journal_upload.py stores broker-export CSVs here. Phase 8.
+journal_uploads/
+
 # --- Python caches ----------------------------------------------------------
 __pycache__/
 *.pyc

@@ -176,6 +176,32 @@ td.num { text-align: right; font-family: ui-monospace, Menlo, monospace; }
 <div x-show="logResult" class="sub-banner info" x-text="logResult"></div>
 </div>
 
+<!-- Upload journal CSV -->
+<div class="card">
+<h3>Upload a journal CSV
+<span class="badge badge-cached" x-text="uploads && uploads.count !== undefined ? uploads.count + ' stored' : '0 stored'"></span>
+</h3>
+<p>Pick a CSV exported from your broker (or any CSV with a header row). The file is stored at <span class="kbd">journal_uploads/&lt;timestamp&gt;_&lt;name&gt;.csv</span> at the plugin root. Max 5 MB. After upload, the entries + summary auto-refresh.</p>
+<div class="toolbar" style="align-items: flex-start;">
+<input type="file" accept=".csv,text/csv" id="vt-journal-file" @change="onFilePick($event)" />
+<button @click="uploadJournal()" :disabled="uploadLoading || !pendingFile">Upload</button>
+<span style="color: var(--vt-muted); font-size: 12px;" x-text="pendingFile ? (pendingFile.name + ' (' + pendingFile.size + ' bytes)') : 'no file chosen'"></span>
+</div>
+<div x-show="uploadResult" class="sub-banner info" x-text="uploadResult"></div>
+<table x-show="uploads && uploads.items && uploads.items.length" style="margin-top: 12px;">
+<tr><th>Filename</th><th>Size</th><th>Created (UTC)</th><th>Remove</th></tr>
+<template x-for="u in uploads.items" :key="u.filename">
+<tr>
+<td x-text="u.filename"></td>
+<td class="num" x-text="u.size_bytes"></td>
+<td x-text="u.created_iso"></td>
+<td><button class="ghost" @click="removeUpload(u.filename)">Remove</button></td>
+</tr>
+</template>
+</table>
+<div class="empty" x-show="!uploads || !uploads.items || !uploads.items.length">No uploads stored yet.</div>
+</div>
+
 <!-- Transitions -->
 <div class="card">
 <h3>Tier-transition audit log
@@ -230,6 +256,10 @@ function vibeTradingJournal() {
  logLoading: false,
  logResult: '',
  notice: '',
+ pendingFile: null,
+ uploads: null,
+ uploadLoading: false,
+ uploadResult: '',
  get headerMeta() { return this.loading ? 'loading...' : ''; },
  get entriesMeta() { return this.entriesSource ? 'source: ' + this.entriesSource : ''; },
  get bestSymLabel() {
@@ -259,6 +289,7 @@ function vibeTradingJournal() {
  var savedMax = window.VibeTrading && window.VibeTrading.recall('journal.maxRows', 20);
  if (savedMax) this.maxRows = savedMax;
  await this.refresh(false);
+ await this.loadUploads();
  if (window.VibeTrading) {
  try {
  window.VibeTrading.registerShortcuts({
@@ -354,7 +385,100 @@ function vibeTradingJournal() {
  } finally {
  this.logLoading = false;
  }
+ },
+ async loadUploads() {
+ this.uploadLoading = true;
+ try {
+ var r = await fetch('/api/plugins/vibe_trading/journal_upload', {
+ method: 'POST', headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({ action: 'list' })
+ });
+ var j = await r.json();
+ if (j && j.ok) this.uploads = j;
+ else this.notice = 'upload list failed: ' + (j && j.error || '?');
+ } catch (e) {
+ this.notice = 'upload list error: ' + (e && e.message || '?');
+ } finally {
+ this.uploadLoading = false;
  }
+ },
+ onFilePick(ev) {
+ var f = ev && ev.target && ev.target.files && ev.target.files[0];
+ this.pendingFile = f || null;
+ this.uploadResult = '';
+ },
+ async uploadJournal() {
+ if (!this.pendingFile) {
+ if (window.VibeTrading) window.VibeTrading.toast('Pick a CSV file first', 'warning');
+ return;
+ }
+ if (this.pendingFile.size > 5 * 1024 * 1024) {
+ if (window.VibeTrading) window.VibeTrading.toast('File too large (max 5 MB)', 'error');
+ return;
+ }
+ this.uploadLoading = true;
+ this.uploadResult = '';
+ var self = this;
+ try {
+ var dataUrl = await new Promise(function (resolve, reject) {
+ var r = new FileReader();
+ r.onload = function () { resolve(r.result); };
+ r.onerror = function () { reject(new Error('FileReader failed')); };
+ r.readAsDataURL(self.pendingFile);
+ });
+ var commaIdx = String(dataUrl).indexOf(',');
+ var b64 = commaIdx >= 0 ? String(dataUrl).slice(commaIdx + 1) : String(dataUrl);
+ var r = await fetch('/api/plugins/vibe_trading/journal_upload', {
+ method: 'POST', headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({
+ action: 'upload',
+ filename: self.pendingFile.name,
+ content_b64: b64,
+ size_bytes: self.pendingFile.size
+ })
+ });
+ var j = await r.json();
+ if (j && j.ok) {
+ this.uploadResult = 'stored ' + j.data_rows + ' rows in ' + j.filename;
+ if (window.VibeTrading) window.VibeTrading.toast('Upload stored: ' + j.filename, 'success', 2500);
+ this.pendingFile = null;
+ var input = document.getElementById('vt-journal-file');
+ if (input) input.value = '';
+ await this.loadUploads();
+ await this.refresh(false);
+ } else {
+ this.uploadResult = 'failed: ' + (j && j.error || '?');
+ if (window.VibeTrading) window.VibeTrading.toast('Upload failed', 'error');
+ }
+ } catch (e) {
+ this.uploadResult = 'error: ' + (e && e.message || '?');
+ if (window.VibeTrading) window.VibeTrading.toast('Upload error', 'error');
+ } finally {
+ this.uploadLoading = false;
+ }
+ },
+ async removeUpload(filename) {
+ if (!filename) return;
+ this.uploadLoading = true;
+ try {
+ var r = await fetch('/api/plugins/vibe_trading/journal_upload', {
+ method: 'POST', headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({ action: 'remove', filename: filename })
+ });
+ var j = await r.json();
+ if (j && j.ok) {
+ if (window.VibeTrading) window.VibeTrading.toast('Removed ' + filename, 'success', 2000);
+ await this.loadUploads();
+ await this.refresh(false);
+ } else {
+ if (window.VibeTrading) window.VibeTrading.toast('Remove failed', 'error');
+ }
+ } catch (e) {
+ if (window.VibeTrading) window.VibeTrading.toast('Remove error', 'error');
+ } finally {
+ this.uploadLoading = false;
+ }
+ },
  };
 }
 </script>
