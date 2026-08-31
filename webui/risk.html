@@ -53,7 +53,7 @@ pre { background: #1a1f2c; color: #f0f2f7; padding: 12px; border-radius: 6px; ov
 </h1>
 
 <div class="row">
-<a href="/usr/plugins/vibe_trading/dashboard.html" class="back">&larr; Dashboard</a>
+<a href="/usr/plugins/vibe_trading/webui/dashboard.html" class="back">&larr; Dashboard</a>
 <button @click="refresh(true)" :disabled="loading" style="margin-left: auto;">Refresh</button>
 </div>
 
@@ -182,7 +182,7 @@ function vibeTradingRisk() {
  var saved = window.VibeTrading.recall('risk.simTarget', '');
  if (saved) this.simTarget = saved;
  window.VibeTrading.registerShortcuts({
- 'g d': { description: 'Open Dashboard', handler: function () { window.location.href = '/usr/plugins/vibe_trading/dashboard.html'; } },
+ 'g d': { description: 'Open Dashboard', handler: function () { window.location.href = '/usr/plugins/vibe_trading/webui/dashboard.html'; } },
  'g dd': { description: 'Open Deep Dive', handler: function () { window.location.href = '/usr/plugins/vibe_trading/webui/deepdive.html'; } },
  'g s': { description: 'Open Skills', handler: function () { window.location.href = '/usr/plugins/vibe_trading/webui/skills.html'; } },
  'r': { description: 'Refresh risk guard', handler: function () { self.refresh(true); } }
@@ -305,5 +305,7 @@ function vibeTradingRisk() {
  };
 }
 </script>
+<!-- Alpine LAST (see dashboard.html note): /vendor/alpine is served by the A0 app, same origin. -->
+<script defer src="/vendor/alpine/alpine.min.js"></script>
 </body>
 </html>

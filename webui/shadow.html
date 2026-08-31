@@ -1,5 +1,25 @@
 <!-- Vibe-Trading -- Shadow Account page. -->
-<div x-data="shadowPage()" x-init="init()" class="vt-page vt-shadow">
+<!doctype html>
+<!-- Standalone wrapper: served RAW by ui_server (no injected scripts), so
+     this page must load its own CSS and Alpine. See dashboard.html header. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Shadow Account — Vibe-Trading</title>
+  <link rel="stylesheet" href="dashboard.css" />
+  <style>
+    :root {
+      --vibe-trading-accent: #4f8cff;
+      --vibe-trading-accent-soft: rgba(79, 140, 255, 0.12);
+    }
+    body { margin: 0; padding: 12px 16px 32px; background: #14171c; color: #e6e8ea;
+           font-family: system-ui, -apple-system, sans-serif; font-size: 13px; }
+    [x-cloak] { display: none !important; }
+    a { color: var(--vibe-trading-accent); }
+  </style>
+</head>
+<body><div x-data="shadowPage()" x-init="init()" class="vt-page vt-shadow">
   <header class="vt-page-header">
     <h2>Shadow Account</h2>
     <p class="vt-subtitle">5-step loop: journal &rarr; strategy &rarr; backtest &rarr; report &rarr; signals</p>
@@ -98,3 +118,6 @@ function shadowPage() {
 }
 window.shadowPage = shadowPage;
 </script>
+<script defer src="/vendor/alpine/alpine.min.js"></script>
+</body>
+</html>

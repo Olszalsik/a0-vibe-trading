@@ -27,4 +27,5 @@ webui:
 - journal.html
 - watch.html
 - portfolio.html
+- dashboard.css
 - shared.js

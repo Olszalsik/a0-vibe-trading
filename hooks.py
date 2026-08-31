@@ -363,6 +363,10 @@ def self_check() -> Dict[str, Any]:
         "webui/page.html",
         "webui/watch.html",
         "webui/portfolio.html",
+        "webui/dashboard.html",
+        "webui/dashboard.css",
+        "webui/dashboard.js",
+        "webui/shared.js",
         "extensions/python/banners/_10_vibe_trading_discovery.py",
         "extensions/webui/page-head/vibe-trading-head.html",
     ]

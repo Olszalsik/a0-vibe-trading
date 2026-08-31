@@ -131,7 +131,7 @@
  <div class="top">
  <input type="text" x-model="query" placeholder="Search skills by name or description...">
  <button @click="refresh(true)" :disabled="loading" style="background: var(--vt-accent); color: white; border: none; border-radius: 6px; padding: 8px 14px; cursor: pointer;">Refresh</button>
- <a href="/usr/plugins/vibe_trading/dashboard.html" style="color: var(--vt-accent); font-size: 12px;">&larr; Dashboard</a>
+ <a href="/usr/plugins/vibe_trading/webui/dashboard.html" style="color: var(--vt-accent); font-size: 12px;">&larr; Dashboard</a>
  </div>
 
  <div class="top">
@@ -290,13 +290,14 @@ function vibeTradingSkills() {
 
     // Register shortcuts
     window.VibeTrading.registerShortcuts({
-      'g d': { description: 'Open Dashboard', handler: function () { window.location.href = '/usr/plugins/vibe_trading/dashboard.html'; } },
+      'g d': { description: 'Open Dashboard', handler: function () { window.location.href = '/usr/plugins/vibe_trading/webui/dashboard.html'; } },
       'g dd': { description: 'Open Deep Dive', handler: function () { window.location.href = '/usr/plugins/vibe_trading/webui/deepdive.html'; } },
       'r': { description: 'Refresh skills list', handler: function () { if (typeof data.refresh === 'function') data.refresh(true); } }
     });
   });
 })();
 </script>
-
+<!-- Alpine LAST (see dashboard.html note): /vendor/alpine is served by the A0 app, same origin. -->
+<script defer src="/vendor/alpine/alpine.min.js"></script>
 </body>
 </html>

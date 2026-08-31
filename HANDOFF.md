@@ -33,10 +33,13 @@ Open one of these in your browser:
 
 | URL | Purpose |
 |-----|---------|
-| `/usr/plugins/vibe_trading/dashboard.html` | 8-tab research console |
+| `/usr/plugins/vibe_trading/webui/dashboard.html` | 8-tab research console |
 | `/usr/plugins/vibe_trading/webui/deepdive.html` | Single-symbol aggregator |
 | `/usr/plugins/vibe_trading/webui/skills.html` | 79-skill browser |
 | `/usr/plugins/vibe_trading/webui/main.html` | Live tool list + status |
+
+NOTE: only files under `webui/` (and `extensions/webui/`) are served — a
+root-level `/usr/plugins/vibe_trading/<anything>.html` URL 403s.
 
 Verify the install:
 

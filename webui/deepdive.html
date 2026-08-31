@@ -115,7 +115,7 @@
  <div class="row">
  <input type="text" x-model="symbol" @keydown.enter="fetch()" placeholder="Symbol (e.g. AAPL.US, 600519.SH, 0700.HK)">
  <button @click="fetch(true)" :disabled="loading">Refresh</button>
- <a href="/usr/plugins/vibe_trading/dashboard.html" style="color: var(--vt-accent); align-self: center; font-size: 12px;">&larr; Dashboard</a>
+ <a href="/usr/plugins/vibe_trading/webui/dashboard.html" style="color: var(--vt-accent); align-self: center; font-size: 12px;">&larr; Dashboard</a>
  </div>
 
  <div class="empty" x-show="!result && !loading">Type a symbol and press Enter.</div>
@@ -308,13 +308,14 @@ function vibeTradingDeepDive() {
 
     // Register shortcuts
     window.VibeTrading.registerShortcuts({
-      'g d': { description: 'Open Dashboard', handler: function () { window.location.href = '/usr/plugins/vibe_trading/dashboard.html'; } },
+      'g d': { description: 'Open Dashboard', handler: function () { window.location.href = '/usr/plugins/vibe_trading/webui/dashboard.html'; } },
       'g s': { description: 'Open Skills', handler: function () { window.location.href = '/usr/plugins/vibe_trading/webui/skills.html'; } },
       'r': { description: 'Refresh deep dive', handler: function () { if (typeof data.fetch === 'function') data.fetch(true); } }
     });
   });
 })();
 </script>
-
+<!-- Alpine LAST (see dashboard.html note): /vendor/alpine is served by the A0 app, same origin. -->
+<script defer src="/vendor/alpine/alpine.min.js"></script>
 </body>
 </html>

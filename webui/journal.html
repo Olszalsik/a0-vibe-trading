@@ -68,7 +68,7 @@ td.num { text-align: right; font-family: ui-monospace, Menlo, monospace; }
 </h1>
 
 <div class="row">
-<a href="/usr/plugins/vibe_trading/dashboard.html" class="back">&larr; Dashboard</a>
+<a href="/usr/plugins/vibe_trading/webui/dashboard.html" class="back">&larr; Dashboard</a>
 <button @click="refresh(true)" :disabled="loading">Refresh</button>
 </div>
 
@@ -293,7 +293,7 @@ function vibeTradingJournal() {
  if (window.VibeTrading) {
  try {
  window.VibeTrading.registerShortcuts({
- 'g d': { description: 'Open Dashboard', handler: function () { window.location.href = '/usr/plugins/vibe_trading/dashboard.html'; } },
+ 'g d': { description: 'Open Dashboard', handler: function () { window.location.href = '/usr/plugins/vibe_trading/webui/dashboard.html'; } },
  'g dd': { description: 'Open Deep Dive', handler: function () { window.location.href = '/usr/plugins/vibe_trading/webui/deepdive.html'; } },
  'g s': { description: 'Open Skills', handler: function () { window.location.href = '/usr/plugins/vibe_trading/webui/skills.html'; } },
  'g rg': { description: 'Open Risk Guard', handler: function () { window.location.href = '/usr/plugins/vibe_trading/webui/risk.html'; } },
@@ -482,5 +482,7 @@ function vibeTradingJournal() {
  };
 }
 </script>
+<!-- Alpine LAST (see dashboard.html note): /vendor/alpine is served by the A0 app, same origin. -->
+<script defer src="/vendor/alpine/alpine.min.js"></script>
 </body>
 </html>

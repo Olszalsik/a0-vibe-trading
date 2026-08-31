@@ -130,6 +130,22 @@ A self-contained A0 plugin (id `vibe_trading`, version `0.2.0`):
     verb), the right fix is to add a new action verb and dispatch it from the framework — not
     to monkey-patch the framework from the plugin.
 
+16. **Every page under `webui/` is served RAW — it must be self-sufficient.**
+    `helpers/ui_server.py` serves plugin assets with a plain `send_file` (no wrapping, no
+    injected scripts, no framework). A plugin page therefore MUST, in this order:
+    (a) define its Alpine component function in a plain `<script>` BEFORE the Alpine include,
+    (b) load its own CSS (`dashboard.css` carries the shared `.vt-*` classes),
+    (c) end with `<script defer src="/vendor/alpine/alpine.min.js"></script>` — the ONLY
+    sanctioned Alpine source, served same-origin by the A0 app (`webui/js/initFw.js:16`).
+    The 2026-08-31 bug this rule encodes: `dashboard.html` never referenced `dashboard.js`
+    (component function undefined) or `dashboard.css`, and NO page loaded Alpine standalone —
+    six pages rendered raw unstyled markup or frozen static text in a fresh tab. Alpine must be
+    the LAST script (it auto-starts on DOMContentLoaded). Exception: `config.html` is a
+    Settings-modal x-component fragment — the app supplies Alpine and the `config` binding;
+    do not wrap it or give it its own Alpine include.
+    All page-to-page links MUST use `/usr/plugins/vibe_trading/webui/<page>.html` — root-level
+    `/usr/plugins/vibe_trading/<page>.html` 403s (invariant 10).
+
 ## Build discipline
 - **Sync `default_config.yaml` keys with `webui/config.html` inputs.** Every `<input
   x-model="config.<key>">` in `webui/config.html` must have a matching default in

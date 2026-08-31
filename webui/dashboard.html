@@ -1,3 +1,4 @@
+<!doctype html>
 <!--
   Vibe-Trading — Dashboard (Phase 1, MVP).
 
@@ -5,13 +6,41 @@
   All backend calls go to POST /api/plugins/vibe_trading/dashboard with an
   `action` field. The API contract lives in /api/dashboard.py.
 
-  Phase 1 wires Overview / Markets / Backtest to real handlers
-  (snapshot / quote / backtest). The other 4 tabs are placeholders that
-  point at their Phase 2 endpoints (api/shadow.py, api/alphazoo.py,
-  api/swarms.py, api/connectors.py) so users see what's coming.
+  Overview / Markets / Backtest wire real handlers (snapshot / quote /
+  backtest). Shadow / Alphas / Swarm / Connectors are link-out tabs to the
+  dedicated full pages (shadow.html, alphazoo.html, swarms.html,
+  portfolio.html) — those handlers shipped in v0.2.0.
+
+  Standalone-page contract: this file is served RAW by the A0 asset server
+  (no wrapping, no injected scripts — helpers/ui_server.py send_file), so it
+  must (a) define its Alpine component BEFORE the deferred Alpine include and
+  (b) load its own CSS. dashboard.js defines vibeTradingDashboard();
+  dashboard.css styles it. Missing either renders a raw, unstyled document.
 
   Single-quote string literals throughout (plugin-wide constraint).
 -->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Vibe-Trading Dashboard</title>
+  <link rel="stylesheet" href="dashboard.css" />
+  <style>
+    /* page-head vars are only injected inside the A0 WebUI — repeat them here
+       so the standalone tab themes correctly. */
+    :root {
+      --vibe-trading-accent: #4f8cff;
+      --vibe-trading-accent-soft: rgba(79, 140, 255, 0.12);
+      --a0-fg: #e6e8ea;
+      --a0-border: rgba(255,255,255,0.12);
+      --a0-bg: #14171c;
+    }
+    body { margin: 0; padding: 12px 16px 32px; background: var(--a0-bg); color: var(--a0-fg); }
+    [x-cloak] { display: none !important; }
+    kbd { padding: 1px 5px; border-radius: 3px; background: rgba(255,255,255,0.08); font-size: 11px; }
+  </style>
+</head>
+<body>
 <div x-data="vibeTradingDashboard()" x-init="init()" class="vt-dashboard">
 
   <header class="vt-header">
@@ -184,8 +213,8 @@
   <section class="vt-pane" x-show="activeTab === 'shadow'" x-transition>
     <div class="vt-card">
       <h3>Shadow Account loop</h3>
-      <p class="vt-meta">Journal → strategy extraction → backtest → report → signal scan.</p>
-      <p class="vt-placeholder">Full handler ships in v0.2.0 (api/shadow.py).</p>
+      <p class="vt-meta">Journal &rarr; strategy extraction &rarr; backtest &rarr; report &rarr; signal scan.</p>
+      <p class="vt-meta">Full page: <a href="/usr/plugins/vibe_trading/webui/shadow.html" target="_blank" rel="noopener">Shadow Account &rarr;</a></p>
     </div>
   </section>
 
@@ -193,7 +222,7 @@
     <div class="vt-card">
       <h3>Alpha Zoo</h3>
       <p class="vt-meta">452 pre-built alphas across qlib158, alpha101, gtja191, academic.</p>
-      <p class="vt-placeholder">Full handler ships in v0.2.0 (api/alphazoo.py).</p>
+      <p class="vt-meta">Full page: <a href="/usr/plugins/vibe_trading/webui/alphazoo.html" target="_blank" rel="noopener">Alpha Zoo &rarr;</a></p>
     </div>
   </section>
 
@@ -201,7 +230,7 @@
     <div class="vt-card">
       <h3>Swarm presets</h3>
       <p class="vt-meta">29 multi-agent teams (investment committee, quant desk, risk committee, ...).</p>
-      <p class="vt-placeholder">Full handler ships in v0.2.0 (api/swarms.py).</p>
+      <p class="vt-meta">Full page: <a href="/usr/plugins/vibe_trading/webui/swarms.html" target="_blank" rel="noopener">Swarms &rarr;</a></p>
     </div>
   </section>
 
@@ -209,7 +238,7 @@
     <div class="vt-card">
       <h3>Trading connectors</h3>
       <p class="vt-meta">Read-only views of IBKR / Robinhood / Futu / Trading212 profiles.</p>
-      <p class="vt-placeholder">Full handler ships in v0.2.0 (api/connectors.py).</p>
+      <p class="vt-meta">Full page: <a href="/usr/plugins/vibe_trading/webui/portfolio.html" target="_blank" rel="noopener">Portfolio &amp; connectors &rarr;</a> &middot; <a href="/usr/plugins/vibe_trading/webui/risk.html" target="_blank" rel="noopener">Risk Guard &rarr;</a></p>
     </div>
   </section>
 
@@ -250,6 +279,9 @@
 </section>
 
 
+<!-- The Alpine component lives HERE — never referenced until 2026-08-31, which
+     left the whole dashboard dead (undefined vibeTradingDashboard()). -->
+<script src="dashboard.js"></script>
 <script src="shared.js"></script>
 
 <!-- vibe-trading:phase5b shortcuts + persistence + toasts -->
@@ -377,3 +409,10 @@
   });
 })();
 </script>
+
+<!-- Alpine LAST: auto-starts on DOMContentLoaded, after the component
+     functions above were defined. /vendor/alpine is served by the A0 app,
+     same origin. -->
+<script defer src="/vendor/alpine/alpine.min.js"></script>
+</body>
+</html>
