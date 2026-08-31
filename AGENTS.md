@@ -73,9 +73,13 @@ A self-contained A0 plugin (id `vibe_trading`, version `0.2.0`):
    "error": ...}` instead of raising). Don't tighten this to raise — the user may have an
    unconfigured `vibe-trading-ai` and the rest of A0 should still boot.
 7. **API handler MCP probes must wrap stdio in `asyncio.wait_for(...)` and never block
-   indefinitely.** `api/tools.py:55-58` and `api/stats.py:75-78` bound the probe to 12s; the
-   inner session `initialize()` and `list_tools()` to 10s each. Without these timeouts, a hung
-   `vibe-trading-mcp` would block the API handler's event loop indefinitely.
+   indefinitely.** The shared probe in `api/tools.py` bounds the whole run to 45s and the inner
+   session `initialize()`/`list_tools()` to 25s/15s. The earlier 12s budget LOST the cold-start
+   race (invariant 1: 8–25s) on every panel refresh right after an A0 restart — the panel showed
+   "MCP server down" while a warmed CLI probe passed. Budgets must stay ≥ the cold-start ceiling
+   AND strictly bounded (a hung `vibe-trading-mcp` must never block the API handler's loop).
+   `api/stats.py` does NOT probe on its own — it reuses `api.tools._get_tools()` (15s cache +
+   asyncio.Lock) so a page load triggers at most one stdio boot.
 8. **The banner's `cta_action` must use `open-modal:<path>`, not `open-plugin-config:<name>`.**
    v2.5's `welcomeStore.executeBannerAction` (`webui/components/welcome/welcome-store.js:159-172`)
    only dispatches `open-modal:<path>` and `open-url:<url>`. The v2.2-era

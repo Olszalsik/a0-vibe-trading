@@ -28,6 +28,16 @@ if PLUGIN_ROOT not in sys.path:
 
 _CACHE: Dict[str, Any] = {"tools": [], "fetched_at": 0.0, "error": None}
 _CACHE_TTL_SECONDS = 15.0
+_CACHE_LOCK: Optional[asyncio.Lock] = None
+
+
+def _cache_lock() -> asyncio.Lock:
+    # Created lazily so this module can be imported outside a running loop
+    # (Python 3.10+ binds asyncio.Lock to the current loop at construction).
+    global _CACHE_LOCK
+    if _CACHE_LOCK is None:
+        _CACHE_LOCK = asyncio.Lock()
+    return _CACHE_LOCK
 
 
 async def _probe_tools() -> Dict[str, Any]:
@@ -45,15 +55,20 @@ async def _probe_tools() -> Dict[str, Any]:
         try:
             async with stdio_client(params) as (read, write):
                 async with ClientSession(read, write) as session:
-                    await asyncio.wait_for(session.initialize(), timeout=10)
-                    res = await asyncio.wait_for(session.list_tools(), timeout=10)
-                    names: List[str] = sorted([t.name for t in (res.tools or [])])
-                    return {"tools": names, "error": None}
+                    # Cold start of the upstream server is 8-25s (it imports 54
+                    # tool modules and warms the alpha registry, see AGENTS.md
+                    # invariant 1) — a 10s initialize timeout lost that race on
+                    # every panel refresh right after an A0 restart. Still
+                    # strictly bounded, just generous enough to win the race.
+                    await asyncio.wait_for(session.initialize(), timeout=25)
+                    res = await asyncio.wait_for(session.list_tools(), timeout=15)
+                    names_: List[str] = sorted([t.name for t in (res.tools or [])])
+                    return {"tools": names_, "error": None}
         except Exception as e:  # pragma: no cover
             return {"tools": [], "error": str(e)[:300]}
 
     try:
-        return await asyncio.wait_for(_run(), timeout=12)
+        return await asyncio.wait_for(_run(), timeout=45)
     except Exception as e:  # pragma: no cover
         return {"tools": [], "error": str(e)[:300]}
 
@@ -62,11 +77,17 @@ async def _get_tools(force: bool = False) -> Dict[str, Any]:
     now = time.time()
     if not force and (now - _CACHE["fetched_at"]) < _CACHE_TTL_SECONDS:
         return {"tools": _CACHE["tools"], "error": _CACHE["error"], "cached": True}
-    res = await _probe_tools()
-    _CACHE["tools"] = res.get("tools", [])
-    _CACHE["error"] = res.get("error")
-    _CACHE["fetched_at"] = now
-    return {"tools": _CACHE["tools"], "error": _CACHE["error"], "cached": False}
+    # Lock so the WebUI pages that call /stats and /tools in parallel share a
+    # single stdio probe instead of racing two cold server boots.
+    async with _cache_lock():
+        now = time.time()
+        if not force and (now - _CACHE["fetched_at"]) < _CACHE_TTL_SECONDS:
+            return {"tools": _CACHE["tools"], "error": _CACHE["error"], "cached": True}
+        res = await _probe_tools()
+        _CACHE["tools"] = res.get("tools", [])
+        _CACHE["error"] = res.get("error")
+        _CACHE["fetched_at"] = now
+        return {"tools": _CACHE["tools"], "error": _CACHE["error"], "cached": False}
 
 
 class Tools(ApiHandler):

@@ -171,15 +171,17 @@ def _probe_mcp_server() -> dict:
         try:
             async with stdio_client(params) as (read, write):
                 async with ClientSession(read, write) as session:
-                    await asyncio.wait_for(session.initialize(), timeout=10)
-                    res = await asyncio.wait_for(session.list_tools(), timeout=10)
+                    # Cold start is 8-25s (AGENTS.md invariant 1); 10s lost
+                    # that race intermittently. Same budgets as api/tools.py.
+                    await asyncio.wait_for(session.initialize(), timeout=25)
+                    res = await asyncio.wait_for(session.list_tools(), timeout=15)
                     names = sorted([t.name for t in (res.tools or [])])
                     return {"probed": True, "tool_count": len(names), "sample_tools": names[:10]}
         except Exception as e:
             return {"probed": False, "error": str(e)[:300]}
 
     try:
-        return asyncio.run(_run())
+        return asyncio.run(asyncio.wait_for(_run(), timeout=45))
     except Exception as e:
         return {"probed": False, "error": str(e)[:300]}
 

@@ -176,7 +176,8 @@
         if (this.stats.mcp_live_probe?.probed) {
           return "MCP server live — " + (this.stats.mcp_live_probe?.tool_count || 0) + " tools reachable";
         }
-        return "MCP server down — run the plugin's execute.py";
+        return "MCP probe failed — server may still be starting (cold start 8–25s); press ↻ to retry"
+          + (this.stats.mcp_live_probe?.error ? " — " + String(this.stats.mcp_live_probe.error).slice(0, 120) : "");
       },
       pickZoo(id) {
         this.activeZoo = id;
