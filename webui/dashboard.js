@@ -27,7 +27,7 @@ function vibeTradingDashboard() {
     ],
     sourceOptions: ['auto', 'yfinance', 'okx', 'tushare', 'akshare', 'baostock', 'ccxt'],
 
-    versionLabel: 'v0.1.10',
+    versionLabel: 'v0.1.11',
     overview: {},
 
     markets: {

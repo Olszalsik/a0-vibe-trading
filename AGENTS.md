@@ -12,7 +12,7 @@ clicked, or the agent falling back to default profiles because the plugin's agen
 discovered. Follow these rules.
 
 ## What this plugin is
-A self-contained A0 plugin (id `vibe_trading`, version `0.1.10`):
+A self-contained A0 plugin (id `vibe_trading`, version `0.1.11`):
 
 - An MCP server registration — on `install()` the plugin writes a single
   `mcpServers["vibe-trading"]` entry into `usr/settings.json` so A0's MCP client spawns the
@@ -110,7 +110,7 @@ A self-contained A0 plugin (id `vibe_trading`, version `0.1.10`):
     all. If you ever add a real enforcement layer, do it as a separate extension
     (`_20_vibe_trading_risk_guard.py`) that intercepts tool calls, not by changing the persona
     prompt.
-13. **Plugin version is `0.1.10` everywhere.** `plugin.yaml:version`, `hooks.py:PLUGIN_VERSION`,
+13. **Plugin version is `0.1.11` everywhere.** `plugin.yaml:version`, `hooks.py:PLUGIN_VERSION`,
     `execute.py:EXPECTED_VERSION`, the `vibe-trading-head.html` meta tag, the banner's `meta`
     dict, and the README's expected output all agree. `scripts/check_v22_contract.py` does not
     enforce this, but `execute.py` prints a WARN if `plugin.yaml` disagrees with

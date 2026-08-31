@@ -120,6 +120,6 @@ def execute(banners: list, **kwargs):
         "meta": {
             "plugin": PLUGIN_NAME,
             "mcp_command": shutil.which("vibe-trading-mcp"),
-            "version": "0.1.10",
+            "version": "0.1.11",
         },
     })

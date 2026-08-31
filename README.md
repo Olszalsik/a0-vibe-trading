@@ -65,7 +65,9 @@ The agent handles tool selection, caching, source citation, and the research goa
 
 ### 2. Dashboard UI (visual research console)
 
-Open `http://localhost:50001/usr/plugins/vibe_trading/dashboard.html` (or click the **Vibe-Trading** link in the sidebar). Eight tabs:
+Open `http://localhost:50001/usr/plugins/vibe_trading/webui/dashboard.html` (or
+**Settings → Plugins → Vibe-Trading → Config** — the *Plugin pages* section at the top of the
+config page links every page). Eight tabs:
 
 | Tab | Purpose | Best for |
 |-----|---------|----------|
@@ -277,7 +279,7 @@ The `vibe-trader` agent profile enforces five hard rules:
 | `agents/vibe-trader/agent.yaml` | Dedicated agent profile |
 | `extensions/python/banners/_10_vibe_trading_discovery.py` | Banner at agent start announcing live tools |
 | `extensions/webui/page-head/vibe-trading-head.html` | Theme CSS variables + meta tag for the WebUI head |
-| `extensions/webui/sidebar-start/vibe-trading-nav.html` | Three sidebar links: VT Dashboard / Deep Dive / Skills |
+| `extensions/webui/chat-input-bottom-actions-end/vibe-trading-btn.html` | Chat-input preset button (chart icon) with research prompt templates |
 | `LICENSE` | MIT |
 
 ## License
