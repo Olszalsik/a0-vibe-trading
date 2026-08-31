@@ -98,10 +98,24 @@ def _check_manifest() -> bool:
     if name != PLUGIN_NAME:
         _print(f"[{PLUGIN_NAME}] ERROR: plugin name is {name!r}, expected {PLUGIN_NAME!r}")
         return False
-    if version != EXPECTED_VERSION:
-        _print(f"[{PLUGIN_NAME}] WARN: manifest version is {version!r}, expected {EXPECTED_VERSION!r}")
-    else:
+    if version == EXPECTED_VERSION:
         _print(f"[{PLUGIN_NAME}] OK: manifest version {version}")
+    else:
+        # version_sync.py deliberately keeps plugin.yaml tracking the
+        # installed vibe-trading-ai version (hooks.install -> sync_plugin_version).
+        # That is by design, so treat "manifest == installed package version"
+        # as healthy instead of warning on every post-install run.
+        synced = None
+        try:
+            import importlib.metadata as md  # type: ignore
+            synced = md.version("vibe-trading-ai")
+        except Exception:
+            synced = None
+        if synced and version == synced:
+            _print(f"[{PLUGIN_NAME}] OK: manifest version {version} (auto-synced with vibe-trading-ai)")
+        else:
+            _print(f"[{PLUGIN_NAME}] WARN: manifest version is {version!r}, expected {EXPECTED_VERSION!r}"
+                   + (f" and no auto-sync (vibe-trading-ai is {synced!r})" if synced else ""))
     return True
 
 

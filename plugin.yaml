@@ -2,11 +2,10 @@ name: vibe_trading
 title: Vibe-Trading
 description: Brings HKUDS/Vibe-Trading finance research tooling into Agent Zero as
   a registered MCP server. Exposes the upstream's full research-only tool set (74
-  tools at v0.1.14 — backtest, factor analysis, options, market data, valuation,
-  governance; 88 finance skills, 452 alphas), market-watch alerts, a portfolio
-  roll-up and a dedicated vibe-trader agent profile. Live order placement is opt-in
-  and gated.
-version: 0.2.0
+  tools at v0.1.14 — backtest, factor analysis, options, market data, valuation, governance;
+  88 finance skills, 452 alphas), market-watch alerts, a portfolio roll-up and a dedicated
+  vibe-trader agent profile. Live order placement is opt-in and gated.
+version: 0.1.10
 settings_sections:
 - external
 - mcp
