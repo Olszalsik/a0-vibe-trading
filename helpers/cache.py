@@ -48,7 +48,13 @@ def get(key: str, *, now: Optional[float] = None) -> Any:
         return value
 
 
-def set(key: str, value: Any, ttl: float = 30.0, *, now: Optional[float] = None) -> None:
+def set(key: str, value: Any, ttl: float = 30.0, *, now: Optional[float] = None,
+        ttl_seconds: Optional[float] = None) -> None:
+    # `ttl_seconds` is an accepted alias: the Phase 6/7 handlers (risk_guard,
+    # journal) were written against this kwarg and call sites predate the
+    # unified helper (Theme B). One alias here beats seven call-site edits.
+    if ttl_seconds is not None:
+        ttl = float(ttl_seconds)
     now_ts = now if now is not None else time.time()
     with _lock:
         existing = _store.pop(key, None) is not None

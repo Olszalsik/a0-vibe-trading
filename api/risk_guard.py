@@ -167,6 +167,8 @@ class RiskGuardHandler(ApiHandler):
             return await self._check_broker(input)
         if action == 'simulate':
             return await self._simulate(input)
+        if action == 'governance':
+            return self._governance(input)
         return {'ok': False, 'error': 'unknown action: ' + action}
 
     async def _state(self) -> Dict[str, Any]:
@@ -233,3 +235,59 @@ class RiskGuardHandler(ApiHandler):
             'actions': actions_to_take,
             'note': 'DRY RUN -- nothing was changed. Apply via plugin.yaml / env / Settings UI to actually promote.',
         }
+
+    def _governance(self, input: Dict[str, Any]) -> Dict[str, Any]:
+        '''v0.2.0: surface the upstream governance state (kill-switch latch,
+        hash-chained audit ledger) if the user runs the upstream vibe-trading
+        backend locally. Read-only best-effort: we SCAN ~/.vibe-trading for
+        governance-named state files and return their parsed contents (trunc-
+        ated). Nothing here fabricates state -- if the upstream is used purely
+        via MCP stdio (no local artifacts), we say so plainly instead.
+
+        Hard size bound: at most 6 files, at most 24 KiB each.'''
+        home = os.path.expanduser('~')
+        vt_dir = os.path.join(home, '.vibe-trading')
+        out: Dict[str, Any] = {'ok': True, 'vibe_trading_dir': vt_dir, 'dir_exists': os.path.isdir(vt_dir)}
+        if not out['dir_exists']:
+            out['note'] = ('No ~/.vibe-trading directory found -- the upstream backend ('
+                           'governance ledger / kill switch) has never run here. '
+                           'MCP-only usage keeps every path read-only regardless.')
+            return out
+
+        candidates: List[str] = []
+        for name in sorted(os.listdir(vt_dir)):
+            low = name.lower()
+            if not low.endswith(('.json', '.jsonl')):
+                continue
+            if any(marker in low for marker in ('governance', 'killswitch', 'kill_switch', 'audit', 'ledger', 'mandate', 'live_gate')):
+                candidates.append(name)
+        out['found'] = []
+        for name in candidates[:6]:
+            path = os.path.join(vt_dir, name)
+            try:
+                with open(path, 'r', encoding='utf-8', errors='replace') as f:
+                    body = f.read(24576)
+                entry: Dict[str, Any] = {'file': name, 'size': os.path.getsize(path)}
+                try:
+                    entry['parsed'] = json.loads(body)
+                except Exception:
+                    entry['text'] = body
+                # JSONL: show the last few entries (most recent) instead of
+                # one truncated blob.
+                if name.lower().endswith('.jsonl') and 'parsed' not in entry:
+                    lines = [ln for ln in body.splitlines() if ln.strip()]
+                    parsed_lines: List[Any] = []
+                    for ln in lines[-6:]:
+                        try:
+                            parsed_lines.append(json.loads(ln))
+                        except Exception:
+                            parsed_lines.append(ln)
+                    entry['last_entries'] = parsed_lines
+                    entry['total_lines'] = len(lines)
+                    entry.pop('text', None)
+                out['found'].append(entry)
+            except Exception as e:
+                out['found'].append({'file': name, 'error': str(e)[:200]})
+        out['note'] = ('Read-only scan of ~/.vibe-trading governance artifacts. '
+                       'The plugin cannot cancel or reset the kill switch -- use the upstream CLI.')
+        return out

@@ -17,6 +17,10 @@ config.json.before-*.bak
 # api/journal_upload.py stores broker-export CSVs here. Phase 8.
 journal_uploads/
 
+# --- Market Watch rules (runtime user data, never publish) ------------------
+# api/watch.py persists price-alert rules here (Phase 9).
+watch_rules.json
+
 # --- Python caches ----------------------------------------------------------
 __pycache__/
 *.pyc

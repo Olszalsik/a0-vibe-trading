@@ -1,0 +1,142 @@
+<!-- Vibe-Trading -- read-only portfolio roll-up.
+     account / positions come via the shared connectors dispatch (opt-in);
+     summary uses the upstream portfolio_summary MCP tool v0.1.13+. -->
+<div x-data="portfolioPage()" x-init="init()" class="vt-page vt-portfolio">
+  <header class="vt-page-header">
+    <h2>Portfolio</h2>
+    <p class="vt-subtitle">Read-only cross-connector view &middot; no order placement exists in this plugin</p>
+  </header>
+
+  <section class="vt-status" x-show="statusMessage" x-transition>
+    <span x-text="statusMessage"></span>
+    <button class="vt-btn vt-btn-text" @click="statusMessage = ''">dismiss</button>
+  </section>
+
+  <section class="vt-card">
+    <header class="vt-zoo-header">
+      <h3>Broker account <span class="vt-pill" x-show="accountCached" x-text="'cached'"></span></h3>
+      <button class="vt-btn vt-btn-ghost vt-btn-small" @click="load('account')" :disabled="loadingAccount">↻</button>
+    </header>
+    <div class="vt-empty" x-show="!account">
+      No account snapshot loaded. If you use a broker connector, fill the connection fields below; otherwise the
+      default connection is used. Nothing is ever written to the broker.
+    </div>
+    <pre x-show="account" x-text="JSON.stringify(account, null, 2)"></pre>
+    <button class="vt-btn vt-btn-small" @click="load('account')" :disabled="loadingAccount">Load account</button>
+  </section>
+
+  <section class="vt-card">
+    <header class="vt-zoo-header">
+      <h3>Positions <span class="vt-pill" x-show="positionsCached" x-text="'cached'"></span></h3>
+      <button class="vt-btn vt-btn-ghost vt-btn-small" @click="load('positions')" :disabled="loadingPositions">↻</button>
+    </header>
+    <div class="vt-empty" x-show="!positions">No positions loaded.</div>
+    <pre x-show="positions" x-text="JSON.stringify(positions, null, 2)"></pre>
+    <button class="vt-btn vt-btn-small" @click="load('positions')" :disabled="loadingPositions">Load positions</button>
+  </section>
+
+  <section class="vt-card">
+    <header class="vt-zoo-header">
+      <h3>Upstream portfolio summary</h3>
+      <button class="vt-btn vt-btn-ghost vt-btn-small" @click="load('summary', true)" :disabled="loadingSummary">↻</button>
+    </header>
+    <div class="vt-empty" x-show="!summary && !summaryUnimplemented">
+      Press <em>Refresh summary</em> to pull <code>portfolio_summary</code>. Needs upstream v0.1.13+.
+    </div>
+    <div class="vt-empty" x-show="summaryUnimplemented">
+      <code>portfolio_summary</code> is not exposed by the installed <code>vibe-trading-mcp</code>.
+      Update the package: <code>pip install -U vibe-trading-ai</code>.
+    </div>
+    <pre x-show="summary" x-text="JSON.stringify(summary, null, 2)"></pre>
+    <button class="vt-btn vt-btn-primary vt-btn-small" @click="load('summary', true)" :disabled="loadingSummary">
+      <span x-show="!loadingSummary">Refresh summary</span><span x-show="loadingSummary">Loading...</span>
+    </button>
+  </section>
+
+  <section class="vt-card" x-show="editingConnection">
+    <h3>Connector details (optional)</h3>
+    <div class="vt-form-row" style="display: flex; gap: 8px; flex-wrap: wrap;">
+      <label class="vt-field vt-field-narrow"><span>connection</span><input type="text" x-model="conn.connection" /></label>
+      <label class="vt-field vt-field-narrow"><span>host</span><input type="text" x-model="conn.host" /></label>
+      <label class="vt-field vt-field-narrow"><span>port</span><input type="number" x-model.number="conn.port" /></label>
+      <label class="vt-field vt-field-narrow"><span>client_id</span><input type="text" x-model.number="conn.client_id" /></label>
+      <label class="vt-field vt-field-narrow"><span>account</span><input type="text" x-model="conn.account" /></label>
+    </div>
+  </section>
+  <button class="vt-btn vt-btn-text" @click="editingConnection = !editingConnection" x-text="editingConnection ? 'hide connector details' : 'connector details...'"></button>
+</div>
+<script>
+function portfolioPage() {
+  return {
+    account: null,
+    positions: null,
+    summary: null,
+    summaryUnimplemented: 0,
+    accountCached: 0,
+    statusMessage: '',
+    loadingAccount: 0,
+    loadingPositions: 0,
+    loadingSummary: 0,
+    editingConnection: 0,
+    conn: { connection: '', host: '', port: null, client_id: null, account: '' },
+    csrf: function() { return ((document.querySelector('meta[name=csrf-token]') || {}).content || ''); },
+    callApi: function(endpoint, payload) {
+      payload = payload || {};
+      if (this.conn.connection) payload.connection = this.conn.connection;
+      if (this.conn.host) payload.host = this.conn.host;
+      if (this.conn.port) payload.port = this.conn.port;
+      if (this.conn.client_id) payload.client_id = this.conn.client_id;
+      if (this.conn.account) payload.account = this.conn.account;
+      return fetch('/api/plugins/vibe_trading/' + endpoint, {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': this.csrf() },
+        body: JSON.stringify(payload),
+      }).then(function(r){ return r.json(); }).catch(function(e){ return { success: 0, error: 'network: ' + (e && e.message) }; });
+    },
+    init: function() { this.load('summary', false); },
+    connectorPayload: function() {
+      var p = {};
+      if (this.conn.connection) p.connection = this.conn.connection;
+      if (this.conn.host) p.host = this.conn.host;
+      if (this.conn.port) p.port = this.conn.port;
+      if (this.conn.client_id) p.client_id = this.conn.client_id;
+      if (this.conn.account) p.account = this.conn.account;
+      return p;
+    },
+    load: function(what, force) {
+      var self = this;
+      if (what === 'account') {
+        this.loadingAccount = 1;
+        this.callApi('portfolio', Object.assign({ action: 'account' }, this.connectorPayload())).then(function(res){
+          self.loadingAccount = 0;
+          if (res && res.success) { self.account = res.data || res.raw || res; self.accountCached = res.cached || 0; }
+          else { self.statusMessage = 'Account failed: ' + ((res && res.error) || 'unknown'); }
+        });
+      } else if (what === 'positions') {
+        this.loadingPositions = 1;
+        this.callApi('portfolio', Object.assign({ action: 'positions' }, this.connectorPayload())).then(function(res){
+          self.loadingPositions = 0;
+          if (res && res.success) { self.positions = res.data || res.raw || res; }
+          else { self.statusMessage = 'Positions failed: ' + ((res && res.error) || 'unknown'); }
+        });
+      } else {
+        this.loadingSummary = 1;
+        var payload = { action: 'summary' };
+        if (force) payload.force = 1;
+        this.callApi('portfolio', payload).then(function(res){
+          self.loadingSummary = 0;
+          self.summaryUnimplemented = 0;
+          if (res && res.success) { self.summary = res.data || res.raw || res; }
+          else {
+            self.summary = null;
+            var err = (res && res.error) || 'unknown';
+            if (String(err).indexOf('not exposed') !== -1) { self.summaryUnimplemented = 1; }
+            else { self.statusMessage = 'Summary failed: ' + err; }
+          }
+        });
+      }
+    },
+  };
+}
+window.portfolioPage = portfolioPage;
+</script>

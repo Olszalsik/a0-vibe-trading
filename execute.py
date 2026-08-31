@@ -31,7 +31,7 @@ if _SCRIPTS not in sys.path:
 
 
 PLUGIN_NAME = "vibe_trading"
-EXPECTED_VERSION = "0.1.11"
+EXPECTED_VERSION = "0.2.0"
 def _print(msg: str) -> None:
     print(msg, flush=True)
 
@@ -48,8 +48,12 @@ def _check_files() -> bool:
         "api/stats.py",
         "api/sync_mcp.py",
         "api/tools.py",
+        "api/watch.py",
+        "api/portfolio.py",
         "webui/config.html",
         "webui/page.html",
+        "webui/watch.html",
+        "webui/portfolio.html",
         "extensions/python/banners/_10_vibe_trading_discovery.py",
         "extensions/webui/page-head/vibe-trading-head.html",
     ]

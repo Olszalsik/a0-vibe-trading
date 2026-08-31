@@ -53,6 +53,7 @@
 
   <template x-teleport="#chat-buttons-wrapper">
     <div style="position: relative; order: 2; display: inline-flex;"
+         x-show="vtPresetButtonVisible()"
          @keydown.escape.window="open = false">
       <button
         type="button"
@@ -82,12 +83,27 @@
 </div>
 
 <script>
+  // v0.2.0: show the preset (chart) button ONLY when the vibe-trader profile
+  // is the selected agent profile. If the framework's settings store is not
+  // reachable we fall back to showing it (old behaviour) so a WebUI version
+  // change can never hide the button entirely.
+  window.vibeTradingPresetButtonVisible = function vibeTradingPresetButtonVisible() {
+    try {
+      const settings = window.Alpine?.store?.("settings");
+      const profile = settings?.settings?.agent_profile;
+      if (!profile) return true; // store absent or no profile set: keep old behaviour
+      return String(profile).startsWith("vibe-") || String(profile).startsWith("vibe_");
+    } catch (_) {
+      return true;
+    }
+  };
   // Exposed as a global so Alpine's x-data="vibeTradingPrompt()" can find it.
   // Kept tiny: all real work is in _insertIntoChatInput(), which talks to the
   // existing chat input textarea via a single, framework-version-tolerant
   // path (works on every modern Alpine x-model textarea).
   window.vibeTradingPrompt = function vibeTradingPrompt() {
     return {
+      vtPresetButtonVisible: window.vibeTradingPresetButtonVisible,
       open: false,
       items: [
         { label: "📈 Backtest a strategy",

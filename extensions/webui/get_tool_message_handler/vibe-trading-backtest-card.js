@@ -32,6 +32,13 @@ const HANDLED_TOOLS = new Set([
   "analyze_options",
   "analyze_trade_journal",
   "run_shadow_backtest",
+  // v0.2.0: newer upstream tools (v0.1.13/v0.1.14 era). Anything whose
+  // payload we cannot recognise still falls back to the default renderer.
+  "technical_indicators",
+  "sentiment",
+  "run_dcf",
+  "run_comps",
+  "portfolio_summary",
 ]);
 
 const TOOL_CODE = {
@@ -40,6 +47,11 @@ const TOOL_CODE = {
   analyze_options: "OPT",
   analyze_trade_journal: "TJ",
   run_shadow_backtest: "SH",
+  technical_indicators: "TI",
+  sentiment: "SNT",
+  run_dcf: "DCF",
+  run_comps: "CMP",
+  portfolio_summary: "PF",
 };
 
 export default async function registerVibeTradingToolHandler(extData) {
@@ -75,6 +87,12 @@ function _extractMetrics(parsed) {
     "total_return", "annual_return", "sharpe", "max_drawdown",
     "win_rate", "trade_count", "ic", "ir", "delta", "gamma",
     "theta", "vega", "price",
+    // v0.2.0: keys emitted by the newer tool payloads
+    "rsi", "macd", "signal_line", "bollinger", "sma", "ema",
+    "sentiment_score", "fear_greed", "score",
+    "intrinsic_value", "target_price", "dcf_value", "implied_value",
+    "comparable", "comps", "multiples",
+    "total_value", "cash", "net_value", "positions",
   ];
   const hit = keys.some((k) => k in candidate);
   return hit ? candidate : null;
@@ -128,13 +146,32 @@ function _displayKvps(metrics, toolName) {
     put("Theta", _formatNumber(metrics.theta));
     put("Vega", _formatNumber(metrics.vega));
     put("Spot / Strike", `${metrics.spot ?? "?"} / ${metrics.strike ?? "?"}`);
-  } else if (toolName === "analyze_trade_journal") {
-    put("Roundtrips", metrics.roundtrips);
-    put("Win rate", _formatPct(metrics.win_rate));
-    put("Avg hold (days)", _formatNumber(metrics.avg_holding_days));
-    put("Disposition effect", metrics.disposition_effect || "—");
-    put("Chasing", metrics.chasing || "—");
-    put("Overtrading", metrics.overtrading || "—");
+  } else if (toolName === "technical_indicators") {
+    put("RSI (14)", _formatNumber(metrics.rsi));
+    put("MACD", _formatNumber(metrics.macd));
+    put("Signal line", _formatNumber(metrics.signal_line));
+    put("Bollinger", metrics.bollinger || "—");
+    put("SMA", _formatNumber(metrics.sma));
+    put("EMA", _formatNumber(metrics.ema));
+  } else if (toolName === "sentiment") {
+    put("Sentiment score", _formatNumber(metrics.sentiment_score ?? metrics.score));
+    put("Fear & Greed", metrics.fear_greed || "—");
+    put("Verdict", metrics.verdict || metrics.summary || metrics.sentiment || "—");
+    put("Source", metrics.source || "—");
+  } else if (toolName === "run_dcf") {
+    put("Intrinsic value", _formatNumber(metrics.intrinsic_value ?? metrics.dcf_value));
+    put("Target price", _formatNumber(metrics.target_price));
+    put("Spot", _formatNumber(metrics.spot ?? metrics.price));
+    if (metrics.assumptions) put("Assumptions", String(metrics.assumptions).slice(0, 80));
+    if (metrics.upside !== undefined) put("Upside", _formatPct(metrics.upside));
+  } else if (toolName === "run_comps") {
+    put("Implied value", _formatNumber(metrics.implied_value ?? metrics.target_price));
+    put("Comparables", metrics.comparable || (Array.isArray(metrics.comps) ? metrics.comps.length + " peers" : "—"));
+    if (metrics.multiples) put("Multiples", String(metrics.multiples).slice(0, 60));
+  } else if (toolName === "portfolio_summary") {
+    put("Total value", _formatNumber(metrics.total_value ?? metrics.net_value));
+    put("Cash", _formatNumber(metrics.cash));
+    put("Positions", Array.isArray(metrics.positions) ? metrics.positions.length : (metrics.positions || "—"));
   }
   return out;
 }

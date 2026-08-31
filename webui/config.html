@@ -33,6 +33,10 @@ A-shares via akshare/baostock/sina/eastmoney/mootdx auto-fallback.
    style="color: var(--vibe-trading-accent, #4f8cff); text-decoration: none; border: 1px solid var(--vibe-trading-accent-soft, rgba(79,140,255,0.25)); padding: 4px 10px; border-radius: 6px; font-size: 12px;">🛡️ Risk Guard</a>
 <a href="/usr/plugins/vibe_trading/webui/journal.html" target="_blank" rel="noopener"
    style="color: var(--vibe-trading-accent, #4f8cff); text-decoration: none; border: 1px solid var(--vibe-trading-accent-soft, rgba(79,140,255,0.25)); padding: 4px 10px; border-radius: 6px; font-size: 12px;">📔 Journal</a>
+<a href="/usr/plugins/vibe_trading/webui/watch.html" target="_blank" rel="noopener"
+   style="color: var(--vibe-trading-accent, #4f8cff); text-decoration: none; border: 1px solid var(--vibe-trading-accent-soft, rgba(79,140,255,0.25)); padding: 4px 10px; border-radius: 6px; font-size: 12px;">🔔 Market Watch</a>
+<a href="/usr/plugins/vibe_trading/webui/portfolio.html" target="_blank" rel="noopener"
+   style="color: var(--vibe-trading-accent, #4f8cff); text-decoration: none; border: 1px solid var(--vibe-trading-accent-soft, rgba(79,140,255,0.25)); padding: 4px 10px; border-radius: 6px; font-size: 12px;">💼 Portfolio</a>
 <a href="/usr/plugins/vibe_trading/webui/alphazoo.html" target="_blank" rel="noopener"
    style="color: var(--vibe-trading-accent, #4f8cff); text-decoration: none; border: 1px solid var(--vibe-trading-accent-soft, rgba(79,140,255,0.25)); padding: 4px 10px; border-radius: 6px; font-size: 12px;">🧬 Alpha Zoo</a>
 <a href="/usr/plugins/vibe_trading/webui/swarms.html" target="_blank" rel="noopener"
@@ -51,7 +55,7 @@ A-shares via akshare/baostock/sina/eastmoney/mootdx auto-fallback.
 <h4 style="margin: 0 0 8px 0;">MCP server</h4>
 <label><input type="checkbox" x-model="config.mcp_enabled" />
 Register <code>vibe-trading-mcp</code> as an MCP server in Agent Zero</label>
-<small>Uncheck to keep the plugin files installed but stop exposing the 54 tools to the agent.</small>
+<small>Uncheck to keep the plugin files installed but stop exposing the live MCP tools to the agent (the count grows with the upstream package — 54 at v0.1.10, 74 at v0.1.14; the exact number is probed live below).</small>
 </div>
 
 <div class="settings-section">
@@ -90,7 +94,7 @@ server in a sidecar venv.</small>
 <option value="zai">Z.ai (Coding Plan)</option>
 <option value="ollama">Ollama (local)</option>
 </select>
-<small>The other 53 MCP tools do not consume an LLM key.</small>
+<small>All other MCP tools do not consume an LLM key.</small>
 </div>
 
 <div class="settings-section">

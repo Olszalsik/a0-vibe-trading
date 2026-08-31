@@ -1,0 +1,187 @@
+<!-- Vibe-Trading -- Market Watch / price alerts. -->
+<div x-data="watchPage()" x-init="init()" class="vt-page vt-watch">
+  <header class="vt-page-header">
+    <h2>Market watch</h2>
+    <p class="vt-subtitle">Read-only price alerts &middot; checked on demand or while this page is open</p>
+  </header>
+
+  <section class="vt-card" x-show="triggeredCount > 0" x-transition>
+    <h3>🔔 <span x-text="triggeredCount"></span> alert(s) triggered</h3>
+    <ul style="margin: 6px 0 0 18px;">
+      <template x-for="r in results.filter(r => r.triggered)" :key="r.id">
+        <li>
+          <strong x-text="r.symbol"></strong>
+          <span x-text="r.condition === 'price_above' ? '>=' : '<='"></span>
+          <code x-text="r.threshold"></code>
+          <span>&mdash; last close <code x-text="r.last_close"></code></span>
+          <span class="vt-meta" x-show="r.note" x-text="'(' + r.note + ')'"></span>
+        </li>
+      </template>
+    </ul>
+    <p class="vt-meta">Copy the triggered symbols into chat with the vibe-trader profile to dig in.</p>
+  </section>
+
+  <section class="vt-card">
+    <h3>Watched levels</h3>
+    <div class="vt-empty" x-show="watches.length === 0">
+      No watch rules yet. Add one below &mdash; e.g. price_above 200 for AAPL.
+    </div>
+    <table x-show="watches.length > 0" style="width: 100%; border-collapse: collapse; font-size: 12px;">
+      <thead>
+        <tr style="text-align: left; opacity: 0.7;">
+          <th style="padding: 4px 6px;">Symbol</th>
+          <th style="padding: 4px 6px;">Condition</th>
+          <th style="padding: 4px 6px;">Last close</th>
+          <th style="padding: 4px 6px;">Note</th>
+          <th style="padding: 4px 6px;">Status</th>
+          <th style="padding: 4px 6px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <template x-for="w in watches" :key="w.id">
+          <tr :style="resultFor(w.id) && resultFor(w.id).triggered ? 'background: rgba(109,213,140,0.12);' : ''">
+            <td style="padding: 4px 6px;"><strong x-text="w.symbol"></strong></td>
+            <td style="padding: 4px 6px;">
+              <span x-text="w.condition === 'price_above' ? '>' : '<'"></span>
+              <code x-text="w.threshold"></code>
+            </td>
+            <td style="padding: 4px 6px;">
+              <code x-text="resultFor(w.id) && resultFor(w.id).last_close != null ? resultFor(w.id).last_close : '—'"></code>
+            </td>
+            <td style="padding: 4px 6px; opacity: 0.8;" x-text="w.note || ''"></td>
+            <td style="padding: 4px 6px;">
+              <span x-show="resultFor(w.id) && resultFor(w.id).triggered" style="color: #6dd58c;">TRIGGERED</span>
+              <span x-show="resultFor(w.id) && !resultFor(w.id).triggered && !resultFor(w.id).error" style="opacity: 0.6;">waiting</span>
+              <span x-show="resultFor(w.id) && resultFor(w.id).error" style="color: #ffb84d;" x-text="'quote failed'"></span>
+              <span x-show="!resultFor(w.id)" style="opacity: 0.5;">not checked</span>
+            </td>
+            <td style="padding: 4px 6px; text-align: right;">
+              <button class="vt-btn vt-btn-text" @click="removeRule(w.id)">remove</button>
+            </td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+    <div class="vt-form-row" style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end;">
+      <label class="vt-field"><span>Symbol</span><input type="text" x-model="newRule.symbol" placeholder="AAPL / 0700.HK / BTC-USD" /></label>
+      <label class="vt-field"><span>Condition</span>
+        <select x-model="newRule.condition">
+          <option value="price_above">price &ge; threshold</option>
+          <option value="price_below">price &le; threshold</option>
+        </select>
+      </label>
+      <label class="vt-field"><span>Threshold</span><input type="number" step="any" min="0" x-model.number="newRule.threshold" /></label>
+      <label class="vt-field"><span>Note (optional)</span><input type="text" x-model="newRule.note" placeholder="why you are watching this" /></label>
+      <button class="vt-btn vt-btn-primary" @click="addRule()" :disabled="adding">
+        <span x-show="!adding">Add rule</span><span x-show="adding">Adding...</span>
+      </button>
+    </div>
+    <p class="vt-meta" style="margin-top: 6px;">
+      Rules persist in <code>watch_rules.json</code> (local, gitignored). Checks run when you press
+      <em>Check now</em> and automatically every 60s while this page is visible &mdash; the plugin never runs
+      background workers.
+    </p>
+  </section>
+
+  <section class="vt-card">
+    <button class="vt-btn vt-btn-primary" @click="check()" :disabled="checking">
+      <span x-show="!checking">Check now</span><span x-show="checking">Checking&hellip;</span>
+    </button>
+    <span class="vt-meta" style="margin-left: 10px;" x-show="checkedAt" x-text="'last checked: ' + checkedAt"></span>
+  </section>
+
+  <section class="vt-status vt-card" x-show="statusMessage">
+    <span x-text="statusMessage"></span>
+    <button class="vt-btn vt-btn-text" @click="statusMessage = ''">dismiss</button>
+  </section>
+</div>
+<script>
+function watchPage() {
+  return {
+    watches: [],
+    results: [],
+    resultsById: {},
+    triggeredCount: 0,
+    checkedAt: '',
+    statusMessage: '',
+    adding: 0,
+    checking: 0,
+    newRule: { symbol: '', condition: 'price_above', threshold: null, note: '' },
+    csrf: function() { return ((document.querySelector('meta[name=csrf-token]') || {}).content || ''); },
+    callApi: function(action, payload) {
+      var self = this;
+      return fetch('/api/plugins/vibe_trading/watch', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': self.csrf() },
+        body: JSON.stringify(Object.assign({ action: action }, payload || {})),
+      }).then(function(r){ return r.json(); }).catch(function(e){ return { success: 0, error: 'network: ' + (e && e.message) }; });
+    },
+    init: function() {
+      this.reload();
+      var self = this;
+      // Auto-check while the page is visible; no work when hidden.
+      setInterval(function() {
+        if (document.visibilityState === 'visible' && self.watches.length) { self.check(); }
+      }, 60000);
+    },
+    reload: function() {
+      var self = this;
+      this.callApi('list', {}).then(function(res) {
+        if (res && res.success) { self.watches = res.watches || []; }
+        else { self.statusMessage = 'Failed to load rules: ' + ((res && res.error) || 'unknown'); }
+      });
+    },
+    addRule: function() {
+      var self = this;
+      if (!this.newRule.symbol || !this.newRule.threshold) {
+        this.statusMessage = 'Symbol and threshold are required.'; return;
+      }
+      this.adding = 1;
+      this.callApi('add', {
+        symbol: this.newRule.symbol,
+        condition: this.newRule.condition,
+        threshold: this.newRule.threshold,
+        note: this.newRule.note,
+      }).then(function(res) {
+        self.adding = 0;
+        if (res && res.success) {
+          self.watches = res.watches || [];
+          self.newRule = { symbol: '', condition: 'price_above', threshold: null, note: '' };
+          self.check();
+        } else { self.statusMessage = 'Add failed: ' + ((res && res.error) || 'unknown'); }
+      });
+    },
+    removeRule: function(id) {
+      var self = this;
+      this.callApi('remove', { id: id }).then(function(res) {
+        if (res && res.success) { self.watches = res.watches || []; }
+        else { self.statusMessage = 'Remove failed: ' + ((res && res.error) || 'unknown'); }
+      });
+    },
+    check: function() {
+      var self = this;
+      if (!this.watches.length) { this.statusMessage = 'Nothing to check - add a rule first.'; return; }
+      this.checking = 1;
+      this.callApi('check', {}).then(function(res) {
+        self.checking = 0;
+        if (res && res.success) {
+          self.checkedAt = res.checked_at || '';
+          self.applyResults(res.results || []);
+          if (self.triggeredCount > 0 && window.VibeTrading && window.VibeTrading.toast) {
+            window.VibeTrading.toast(self.triggeredCount + ' watch alert(s) triggered');
+          }
+        } else { self.statusMessage = 'Check failed: ' + ((res && res.error) || 'unknown'); }
+      });
+    },
+    applyResults: function(results) {
+      this.results = results;
+      var byId = {};
+      (results || []).forEach(function(r){ byId[r.id] = r; });
+      this.resultsById = byId;
+      this.triggeredCount = (results || []).filter(function(r){ return r.triggered; }).length;
+    },
+    resultFor: function(id) { return this.resultsById[id] || null; },
+  };
+}
+window.watchPage = watchPage;
+</script>

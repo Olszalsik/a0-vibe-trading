@@ -12,7 +12,7 @@ clicked, or the agent falling back to default profiles because the plugin's agen
 discovered. Follow these rules.
 
 ## What this plugin is
-A self-contained A0 plugin (id `vibe_trading`, version `0.1.11`):
+A self-contained A0 plugin (id `vibe_trading`, version `0.2.0`):
 
 - An MCP server registration — on `install()` the plugin writes a single
   `mcpServers["vibe-trading"]` entry into `usr/settings.json` so A0's MCP client spawns the
@@ -110,7 +110,7 @@ A self-contained A0 plugin (id `vibe_trading`, version `0.1.11`):
     all. If you ever add a real enforcement layer, do it as a separate extension
     (`_20_vibe_trading_risk_guard.py`) that intercepts tool calls, not by changing the persona
     prompt.
-13. **Plugin version is `0.1.11` everywhere.** `plugin.yaml:version`, `hooks.py:PLUGIN_VERSION`,
+13. **Plugin version is `0.2.0` everywhere.** `plugin.yaml:version`, `hooks.py:PLUGIN_VERSION`,
     `execute.py:EXPECTED_VERSION`, the `vibe-trading-head.html` meta tag, the banner's `meta`
     dict, and the README's expected output all agree. `scripts/check_v22_contract.py` does not
     enforce this, but `execute.py` prints a WARN if `plugin.yaml` disagrees with
@@ -165,14 +165,27 @@ A self-contained A0 plugin (id `vibe_trading`, version `0.1.11`):
   `python /a0/usr/plugins/vibe_trading/execute.py`).
 - **API endpoints (one handler per file):** `api/stats.py` (POST `/api/plugins/vibe_trading/stats`),
   `api/sync_mcp.py` (POST `/api/plugins/vibe_trading/sync_mcp`),
-  `api/tools.py` (POST `/api/plugins/vibe_trading/tools`).
-- **Settings UI:** `webui/config.html` (Alpine + `plugin-settings-store`).
+  `api/tools.py` (POST `/api/plugins/vibe_trading/tools`),
+  `api/watch.py` (POST `/api/plugins/vibe_trading/watch` — persisted price alerts in
+  gitignored `watch_rules.json`; evaluation is on-demand only, never a background worker),
+  `api/portfolio.py` (POST `/api/plugins/vibe_trading/portfolio` — upstream
+  `portfolio_summary` ≥0.1.13 + shared connectors dispatch).
+- **Settings UI:** `webui/config.html` (Alpine + `plugin-settings-store`). Its top
+  *Plugin pages* grid is the SINGLE entry point to every plugin page — since v0.1.11 there
+  is deliberately no sidebar extension (the 5 sidebar buttons collided with the WebUI
+  model card; all root-level URLs like `/usr/plugins/vibe_trading/dashboard.html` are
+  unserved anyway — always use `/usr/plugins/vibe_trading/webui/<page>.html`).
+- **Page routing gotcha:** the sidebar-start extension was REMOVED in v0.1.11. Do not
+  re-add it silently; if the user wants page links again they live in `webui/config.html`.
 - **Info page:** `webui/page.html` (full tool list + status + upstream links).
 - **WebUI injection points:** `extensions/webui/page-head/vibe-trading-head.html` (meta + CSS
   vars), `extensions/python/banners/_10_vibe_trading_discovery.py` (welcome screen discovery
   card), `extensions/webui/get_tool_message_handler/vibe-trading-backtest-card.js` (backtest
-  / factor / options / journal / shadow-backtest stat tiles), and
-  `extensions/webui/chat-input-bottom-actions-end/vibe-trading-btn.html` (chat-input button).
+  / factor / options / journal / shadow-backtest / indicators / sentiment / DCF / comps /
+  portfolio stat tiles), and
+  `extensions/webui/chat-input-bottom-actions-end/vibe-trading-btn.html` (chat-input button,
+  gated since v0.2.0 to show only when a `vibe*` agent profile is selected — falls back to
+  always-visible if the framework's `settings` Alpine store is unreachable).
 - **Agent profile:** `agents/vibe-trader/agent.yaml`. The plugin ships exactly ONE profile —
   do not add siblings (the WebUI picker iterates every subdirectory of `agents/` and would
   show broken entries if a sibling lacks `agent.yaml`).

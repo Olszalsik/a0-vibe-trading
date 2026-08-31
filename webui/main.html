@@ -67,8 +67,8 @@
       <span class="vt-val" x-text="stats?.vibe_trading_ai_version || '—'"></span>
     </div>
     <div class="vt-row" x-show="stats">
-      <span class="vt-key">MCP tools</span>
-      <span class="vt-val" x-text="(stats?.mcp_live_probe?.tool_count || 0) + ' / 54'"></span>
+      <span class="vt-key">MCP tools (live)</span>
+      <span class="vt-val" x-text="stats?.mcp_live_probe?.tool_count || 0"></span>
     </div>
     <div class="vt-row" x-show="stats">
       <span class="vt-key">Risk tier</span>
@@ -174,7 +174,7 @@
         if (!this.stats) return "Loading…";
         if (!this.stats.vibe_trading_ai_installed) return "vibe-trading-ai not installed";
         if (this.stats.mcp_live_probe?.probed) {
-          return "MCP server live — 54 tools reachable";
+          return "MCP server live — " + (this.stats.mcp_live_probe?.tool_count || 0) + " tools reachable";
         }
         return "MCP server down — run the plugin's execute.py";
       },

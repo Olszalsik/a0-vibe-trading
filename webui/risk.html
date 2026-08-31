@@ -126,6 +126,23 @@ pre { background: #1a1f2c; color: #f0f2f7; padding: 12px; border-radius: 6px; ov
 <pre x-show="checkResult" x-text="checkResult"></pre>
 </div>
 
+<!-- Governance / audit ledger (v0.2.0) -->
+<div class="card">
+<h3>Governance state (upstream, read-only)</h3>
+<p>Scans <span class="kbd">~/.vibe-trading</span> for the upstream backend's persisted artifacts &mdash; kill-switch latch, hash-chained audit ledger, mandate / live-gate state. Shown verbatim; the plugin cannot modify or reset any of it.</p>
+<button @click="loadGovernance()" :disabled="govLoading">Scan governance state</button>
+<div x-show="govNote" style="color: var(--vt-muted); font-size: 13px; margin-top: 10px;" x-text="govNote"></div>
+<div x-show="govFiles.length" style="margin-top: 10px;">
+<table>
+<tr><th>File</th><th>Size (bytes)</th></tr>
+<template x-for="f in govFiles" :key="f.file">
+<tr><td x-text="f.file"></td><td x-text="f.size != null ? f.size : '?'"></td></tr>
+</template>
+</table>
+<pre x-show="govRaw" x-text="govRaw"></pre>
+</div>
+</div>
+
 <!-- Shortcut help card -->
 <div class="card">
 <h3>Keyboard shortcuts</h3>
@@ -152,6 +169,10 @@ function vibeTradingRisk() {
  checkBroker: '',
  checkLoading: false,
  checkResult: '',
+ govLoading: false,
+ govNote: '',
+ govFiles: [],
+ govRaw: '',
  get headerMeta() { return this.loading ? 'loading...' : (this.state ? (this.state.cached ? 'cached' : 'live') : ''); },
  async init() {
  var self = this;
@@ -225,6 +246,38 @@ function vibeTradingRisk() {
  if (window.VibeTrading) window.VibeTrading.toast('Simulation failed', 'error');
  } finally {
  this.simLoading = false;
+ }
+ },
+ async loadGovernance() {
+ this.govLoading = true;
+ this.govNote = '';
+ this.govFiles = [];
+ this.govRaw = '';
+ try {
+ var r = await fetch('/api/plugins/vibe_trading/risk_guard', {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({ action: 'governance' })
+ });
+ var j = await r.json();
+ if (j && j.ok) {
+ this.govNote = j.note || '';
+ this.govFiles = j.found || [];
+ if (this.govFiles.length) {
+ this.govRaw = this.govFiles.map(function (f) {
+ return '== ' + f.file + ' ==' + '\n' + JSON.stringify(f.parsed || f.last_entries || f.text || f.error || '', null, 2);
+ }).join('\n\n');
+ } else if (j.dir_exists) {
+ this.govNote = (j.note || '') + ' (no governance-named artifacts found)';
+ }
+ if (window.VibeTrading) window.VibeTrading.toast('Governance scan complete', 'info', 2000);
+ } else {
+ this.govNote = 'scan failed: ' + (j && j.error || '?');
+ }
+ } catch (e) {
+ this.govNote = 'scan error: ' + (e && e.message || '?');
+ } finally {
+ this.govLoading = false;
  }
  },
  async runCheck() {

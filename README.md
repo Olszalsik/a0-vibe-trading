@@ -2,10 +2,10 @@
 
 Brings the [HKUDS/Vibe-Trading](https://github.com/HKUDS/Vibe-Trading) finance-research workspace into [Agent Zero](https://github.com/agent0ai/agent-zero) as a first-class plugin.
 
-* **MCP server** — registers `vibe-trading-mcp` with Agent Zero's MCP client, exposing the upstream's 54 research-only tools (`backtest`, `factor_analysis`, `analyze_options`, `get_market_data`, `run_swarm`, `analyze_trade_journal`, `extract_shadow_strategy`, `scan_shadow_signals`, `web_search`, `read_document`, etc.) to every agent profile.
+* **MCP server** — registers `vibe-trading-mcp` with Agent Zero's MCP client, exposing the upstream's research-only tools (74 at upstream v0.1.14; probed live at runtime) (`backtest`, `factor_analysis`, `analyze_options`, `get_market_data`, `run_swarm`, `analyze_trade_journal`, `extract_shadow_strategy`, `scan_shadow_signals`, `web_search`, `read_document`, etc.) to every agent profile.
 * **Agent profile** — ships a dedicated `vibe-trader` persona with the full research workflow, Shadow Account loop, Alpha Zoo cheatsheet, and hard safety guardrails.
 * **Settings UI** — surfaces MCP toggle, LLM provider, data-source keys, risk tier, and drawdown cap inside the Agent Zero Plugins settings page, with one-click Save → re-sync.
-* **Dashboard** — 8-tab research console with overview, markets, backtest, shadow, alphas, swarm, connectors, settings. Plus standalone Deep Dive and Skills browser pages.
+* **Dashboard** — 8-tab research console with overview, markets, backtest, shadow, alphas, swarm, connectors, settings. Plus standalone Deep Dive, Skills, Market Watch (price alerts) and Portfolio pages.
 * **Cache layer** — TTL-cached MCP responses for expensive calls (backtest 24h, factor 24h, alpha bench 24h, connector reads 30-300s, market data 5-30s). Dashboard reloads in milliseconds on second hit.
 * **UX layer** — keyboard chord shortcuts (`?` for help, `Esc` to dismiss, `g o` / `g m` / `g b` for tab switching, `r` to refresh, `g dd` / `g s` for cross-page nav). State persists across reloads via localStorage. Toast notifications on async actions. Export/import button pair for backup of all preferences.
 * **Live status panel** — `webui/page.html` shows install state, MCP server reachability, and the live tool list.
@@ -25,7 +25,7 @@ Brings the [HKUDS/Vibe-Trading](https://github.com/HKUDS/Vibe-Trading) finance-r
 | **Shadow Account** | `analyze_trade_journal`, `extract_shadow_strategy`, `run_shadow_backtest`, `render_shadow_report`, `scan_shadow_signals` | Behavioural diagnostics + 3-5 distilled if-then rules + delta-PnL |
 | **Macro & search** | `get_macro_series`, `iwencai_search`, `web_search`, `read_url`, `read_document` | FRED, iWenCai NL, DuckDuckGo, PDF/DOCX/XLSX/PPTX/image OCR |
 | **Trading connector reads** | `trading_account`, `trading_positions`, `trading_orders`, `trading_quote`, `trading_history`, `trading_connections`, `trading_select_connection`, `trading_check` | Read-only; opt-in connector profiles (IBKR local TWS/Gateway, Robinhood MCP OAuth, Futu, Trading 212) — **no order placement via MCP** |
-| **Skills knowledge base** (79) | `list_skills`, `load_skill` | Candlestick, Elliott wave, Ichimoku, SMC, harmonic, chanlun, factor research, ML strategy, pair trading, VaR/CVaR, hedging, SEC filings, crypto trading desk, behavioural finance, … |
+| **Skills knowledge base** (88 at upstream v0.1.14) | `list_skills`, `load_skill` | Candlestick, Elliott wave, Ichimoku, SMC, harmonic, chanlun, factor research, ML strategy, pair trading, VaR/CVaR, hedging, SEC filings, crypto trading desk, behavioural finance, … |
 
 ## Install
 
@@ -39,7 +39,7 @@ cp -r usr/plugins/vibe_trading /a0/usr/plugins/
 # 3) Restart Agent Zero (the plugin's hooks.py auto-registers the MCP server on first boot)
 ```
 
-After Agent Zero restarts, the agent profile `vibe-trader` appears in the **Agent profile** dropdown, the settings page shows a new **Vibe-Trading** section, and any agent can call the 54 tools by their upstream names (e.g. `backtest`, `get_market_data`, `run_swarm`).
+After Agent Zero restarts, the agent profile `vibe-trader` appears in the **Agent profile** dropdown, the settings page shows a new **Vibe-Trading** section, and any agent can call the live tool set by their upstream names (e.g. `backtest`, `get_market_data`, `run_swarm`).
 
 ## How to use this plugin
 
@@ -80,12 +80,28 @@ config page links every page). Eight tabs:
 | **Connectors** | Read-only views into opt-in broker connectors (IBKR / Futu / Robinhood / Trading 212) | "What's my account look like?" |
 | **Settings** | UI preferences, keyboard shortcut help, plugin settings link | Theme + shortcut reference |
 
-Two **standalone pages** also ship:
+Four **standalone pages** also ship (all linked from the config page's *Plugin pages* grid):
 
 | URL | Purpose |
 |-----|---------|
 | `/usr/plugins/vibe_trading/webui/deepdive.html` | Single-symbol aggregator: profile card + financials + news + chart — one shot |
-| `/usr/plugins/vibe_trading/webui/skills.html` | Browse 79 finance skills (candlestick, Elliott wave, Ichimoku, SMC, factor research, …), load any one into the chat |
+| `/usr/plugins/vibe_trading/webui/skills.html` | Browse the finance skills (candlestick, Elliott wave, Ichimoku, SMC, factor research, …), load any one into the chat |
+| `/usr/plugins/vibe_trading/webui/watch.html` | **Market Watch** (v0.2.0): persisted price-alert rules — checked on demand or every 60 s while the page is open |
+| `/usr/plugins/vibe_trading/webui/portfolio.html` | **Portfolio** (v0.2.0): read-only cross-connector account/positions + upstream `portfolio_summary` (needs upstream ≥ 0.1.13) |
+
+### Market Watch (v0.2.0)
+
+Set price thresholds (`price_above` / `price_below`) on any symbol. Rules persist in
+`watch_rules.json` (gitignored). Alerts evaluate only while you press **Check now** or while
+the Watch page is open and visible — the plugin registers no background workers. Triggered
+alerts are highlighted in the page (and toasted when `shared.js` is loaded).
+
+### Governance surfacing (v0.2.0)
+
+The **Risk Guard** page has a *Governance state* section that scans `~/.vibe-trading/` for the
+upstream backend's persisted artifacts (kill-switch latch, hash-chained audit ledger,
+mandate / live-gate files) and shows them verbatim, read-only. If the upstream has never run
+locally, the section says so plainly.
 
 ### 3. REST API (programmatic / scripted)
 
@@ -101,7 +117,7 @@ curl -X POST http://localhost:50001/api/plugins/vibe_trading/dashboard \
   -H 'Content-Type: application/json' \
   -d '{"action": "quote", "ticker": "AAPL.US", "source": "yfinance"}'
 
-# List 79 finance skills
+# List finance skills
 curl -X POST http://localhost:50001/api/plugins/vibe_trading/skills \
   -H 'Content-Type: application/json' -d '{"action": "list"}'
 
@@ -205,7 +221,7 @@ Expected tail at v0.5.1:
 [vibe_trading] Health check PASSED — 54 tools live.
 ```
 
-A `PARTIAL` health check with `mcp_probe.error = "unhandled errors in a TaskGroup (1 sub-exception)"` is a known stdio-transport flake from `execute.py`'s inline probe and does not affect runtime — the plugin's own install path still reports `registered: true` and the 54 tools remain reachable through `api/tools.py`.
+A `PARTIAL` health check with `mcp_probe.error = "unhandled errors in a TaskGroup (1 sub-exception)"` is a known stdio-transport flake from `execute.py`'s inline probe and does not affect runtime — the plugin's own install path still reports `registered: true` and the tools remain reachable through `api/tools.py`.
 
 ## Configuration
 
@@ -262,7 +278,9 @@ The `vibe-trader` agent profile enforces five hard rules:
 | `api/alphazoo.py` | `POST /api/plugins/vibe_trading/alphazoo` — `list`, `bench` (TTL-cached) |
 | `api/connectors.py` | `POST /api/plugins/vibe_trading/connectors` — `list`, `select`, `account`, `positions`, `orders`, `quote`, `history` |
 | `api/deep_dive.py` | `POST /api/plugins/vibe_trading/deep_dive` — `fetch` (aggregates profile + financials + news + quote) |
-| `api/skills.py` | `POST /api/plugins/vibe_trading/skills` — `list` (79 skills, categorised), `load` |
+| `api/skills.py` | `POST /api/plugins/vibe_trading/skills` — `list` (skills, categorised), `load` |
+| `api/watch.py` | `POST /api/plugins/vibe_trading/watch` — `list`, `add`, `remove`, `check` (price-alert rules, `watch_rules.json`) |
+| `api/portfolio.py` | `POST /api/plugins/vibe_trading/portfolio` — `summary` (upstream `portfolio_summary`), `account`, `positions` |
 | `helpers/cache.py` | Shared thread-safe TTL cache (used by 7 read-heavy handlers) |
 | `webui/main.html` | Standalone plugin page with live tool list |
 | `webui/page.html` | Full info page with live status + tool list |
@@ -271,7 +289,9 @@ The `vibe-trader` agent profile enforces five hard rules:
 | `webui/dashboard.css` | Dashboard styles |
 | `webui/dashboard.js` | Dashboard Alpine component |
 | `webui/deepdive.html` | Single-symbol deep-dive page |
-| `webui/skills.html` | 79-skill browser |
+| `webui/skills.html` | Skills browser |
+| `webui/watch.html` | Market Watch — price alerts (v0.2.0) |
+| `webui/portfolio.html` | Portfolio roll-up (v0.2.0) |
 | `webui/alphazoo.html` | Alpha zoo browser (452 alphas across 4 zoos) |
 | `webui/swarms.html` | Swarm preset browser + run manager |
 | `webui/shadow.html` | Shadow Account launcher + journal upload |

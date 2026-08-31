@@ -51,10 +51,10 @@ if PLUGIN_ROOT not in sys.path:
 # Per-action TTL preserved. helpers.cache is thread-safe.
 from helpers import cache as _cache  # type: ignore
 
-_QUOTE_CACHE_NS = 'dashboard.quote'
+_QUOTE_NS = 'dashboard.quote'
 _QUOTE_TTL_SECONDS = 5.0
 
-_SNAPSHOT_CACHE_NS = 'dashboard.snapshot'
+_SNAPSHOT_NS = 'dashboard.snapshot'
 _SNAPSHOT_TTL_SECONDS = 15.0
 
 # Phase 4: cache for expensive MCP calls (backtest + factor).
@@ -127,8 +127,8 @@ async def _call_tool(cmd: str, name: str, arguments: Dict[str, Any], outer_timeo
         return {'ok': False, 'error': str(e)[:300]}
 
 
-def _quote_cache_key(codes: List[str], source: str) -> Tuple[Tuple[str, ...], str]:
-    return (tuple(codes), source or 'auto')
+def _quote_cache_key(codes: List[str], source: str) -> str:
+    return _QUOTE_NS + '|' + ','.join(sorted(set(codes))) + '|' + (source or 'auto')
 
 
 async def _quote(codes: List[str], source: str = 'auto') -> Dict[str, Any]:
@@ -137,10 +137,10 @@ async def _quote(codes: List[str], source: str = 'auto') -> Dict[str, Any]:
         return {'ok': False, 'error': 'vibe-trading-mcp not on PATH', 'cached': False}
 
     today = time.strftime('%Y-%m-%d')
-    key = _quote_cache_key(codes, source)
-    now = time.time()
-    if _QUOTE_CACHE['key'] == key and (now - _QUOTE_CACHE['fetched_at']) < _QUOTE_TTL_SECONDS:
-        return {'ok': True, 'cached': True, **_QUOTE_CACHE['value']}
+    cache_k = _quote_cache_key(codes, source)
+    hit = _cache.get(cache_k)
+    if hit is not None:
+        return {'ok': True, 'cached': True, **hit}
 
     res = await _call_tool(
         cmd,
@@ -157,14 +157,17 @@ async def _quote(codes: List[str], source: str = 'auto') -> Dict[str, Any]:
         inner_timeout=10.0,
     )
     if res.get('ok'):
-        _QUOTE_CACHE['key'] = key
-        _QUOTE_CACHE['value'] = {'data': res.get('data', res.get('raw'))}
-        _QUOTE_CACHE['fetched_at'] = now
+        # Cache the shape the WebUI expects ({data: ...}) so a cached hit and a
+        # fresh hit are the same payload.
+        _cache.set(cache_k, {'data': res.get('data', res.get('raw'))}, ttl=_QUOTE_TTL_SECONDS)
     res['cached'] = False
     return res
 
 
 async def _backtest(run_dir: str) -> Dict[str, Any]:
+    cmd = _resolve_mcp_cmd()
+    if not cmd:
+        return {'ok': False, 'error': 'vibe-trading-mcp not on PATH'}
     cache_k = _BACKTEST_NS + '|' + run_dir
     hit = _cache.get(cache_k)
     if hit is not None:
@@ -203,9 +206,10 @@ async def _factor(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 
 async def _snapshot(force: bool = False) -> Dict[str, Any]:
-    now = time.time()
-    if not force and _SNAPSHOT_CACHE['value'] is not None and (now - _SNAPSHOT_CACHE['fetched_at']) < _SNAPSHOT_TTL_SECONDS:
-        return {'ok': True, 'cached': True, **_SNAPSHOT_CACHE['value']}
+    if not force:
+        hit = _cache.get(_SNAPSHOT_NS)
+        if hit is not None:
+            return {'ok': True, 'cached': True, **hit}
 
     out: Dict[str, Any] = {}
     try:
@@ -226,8 +230,7 @@ async def _snapshot(force: bool = False) -> Dict[str, Any]:
     except Exception as e:
         out['tools'] = {'names': [], 'count': 0, 'error': str(e)[:200]}
 
-    _SNAPSHOT_CACHE['value'] = out
-    _SNAPSHOT_CACHE['fetched_at'] = now
+    _cache.set(_SNAPSHOT_NS, out, ttl=_SNAPSHOT_TTL_SECONDS)
     return {'ok': True, 'cached': False, **out}
 
 

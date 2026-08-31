@@ -357,8 +357,12 @@ def self_check() -> Dict[str, Any]:
         "api/stats.py",
         "api/sync_mcp.py",
         "api/tools.py",
+        "api/watch.py",
+        "api/portfolio.py",
         "webui/config.html",
         "webui/page.html",
+        "webui/watch.html",
+        "webui/portfolio.html",
         "extensions/python/banners/_10_vibe_trading_discovery.py",
         "extensions/webui/page-head/vibe-trading-head.html",
     ]
