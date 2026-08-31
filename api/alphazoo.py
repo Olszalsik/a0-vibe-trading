@@ -41,7 +41,10 @@ if PLUGIN_ROOT not in sys.path:
 # Phase 4: bench result caching (24h TTL keyed by codes+date+sample_per_zoo).
 import hashlib
 
-from helpers import cache as _cache  # type: ignore
+# NOTE: NOT `from helpers import cache` -- inside the A0 server the framework
+# helpers package shadows the plugin's, and its cache API is (area, key)-shaped
+# with no TTL. This plugin-root module is shadow-proof. See vibe_trading_cache.py.
+import vibe_trading_cache as _cache
 
 _BENCH_NS = 'alphazoo.bench'
 _BENCH_TTL_SECONDS = 86400.0  # 24h

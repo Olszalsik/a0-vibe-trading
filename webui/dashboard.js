@@ -19,10 +19,12 @@ function vibeTradingDashboard() {
       { id: 'overview', label: 'Overview', phase: 1 },
       { id: 'markets', label: 'Markets', phase: 1 },
       { id: 'backtest', label: 'Backtest', phase: 1 },
-      { id: 'shadow', label: 'Shadow', phase: 2 },
-      { id: 'alphas', label: 'Alphas', phase: 2 },
-      { id: 'swarm', label: 'Swarm', phase: 2 },
-      { id: 'connectors', label: 'Connectors', phase: 2 },
+      // shadow / alphas / swarm / connectors are link-out tabs to the full
+      // dedicated pages (v0.2.0 shipped those) — no 'soon' tag anymore.
+      { id: 'shadow', label: 'Shadow', phase: 1 },
+      { id: 'alphas', label: 'Alphas', phase: 1 },
+      { id: 'swarm', label: 'Swarm', phase: 1 },
+      { id: 'connectors', label: 'Connectors', phase: 1 },
       { id: 'settings', label: 'Settings', phase: 1 }
     ],
     sourceOptions: ['auto', 'yfinance', 'okx', 'tushare', 'akshare', 'baostock', 'ccxt'],

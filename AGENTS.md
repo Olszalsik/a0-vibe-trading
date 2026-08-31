@@ -146,6 +146,21 @@ A self-contained A0 plugin (id `vibe_trading`, version `0.2.0`):
     All page-to-page links MUST use `/usr/plugins/vibe_trading/webui/<page>.html` — root-level
     `/usr/plugins/vibe_trading/<page>.html` 403s (invariant 10).
 
+17. **Inside API handlers, NEVER `from helpers import <anything plugin-local>`.** Inside the
+    running A0 server, `helpers` is ALREADY in `sys.modules` as the FRAMEWORK package
+    (`/a0/helpers`), so a relative-looking plugin import silently resolves to framework code.
+    The 2026-08-31 bug this rule encodes: 12 handlers did `from helpers import cache as _cache`
+    — at runtime that bound the FRAMEWORK's `helpers/cache.py` (API: `get(area, key, default)`,
+    `add()`, no TTL) instead of the plugin's `helpers/cache.py` (`get(key)`, TTL). Every cached
+    call then raised `TypeError: get() missing 1 required positional argument: 'key'` and the
+    dashboard showed "Snapshot failed: bad JSON from server" with all tiles at `—`.
+    Fix: plugin-local modules used by handlers live at the PLUGIN ROOT as top-level modules
+    the framework does not shadow (`vibe_trading_cache.py`), imported as
+    `import vibe_trading_cache as _cache` — a top-level name cannot be shadowed. The plugin's
+    own `helpers/cache.py` remains only for standalone tools (`execute.py`, unit tests) that
+    import outside the A0 server process. Every `import vibe_trading_cache` site must come
+    AFTER the file's `sys.path.insert(0, PLUGIN_ROOT)`.
+
 ## Build discipline
 - **Sync `default_config.yaml` keys with `webui/config.html` inputs.** Every `<input
   x-model="config.<key>">` in `webui/config.html` must have a matching default in

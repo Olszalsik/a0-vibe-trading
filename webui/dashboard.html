@@ -9,7 +9,9 @@
   Overview / Markets / Backtest wire real handlers (snapshot / quote /
   backtest). Shadow / Alphas / Swarm / Connectors are link-out tabs to the
   dedicated full pages (shadow.html, alphazoo.html, swarms.html,
-  portfolio.html) — those handlers shipped in v0.2.0.
+  portfolio.html) — those handlers shipped in v0.2.0. The header has a
+  &larr; Agent Zero return link because these pages open as standalone tabs
+  with no browser history to go back to.
 
   Standalone-page contract: this file is served RAW by the A0 asset server
   (no wrapping, no injected scripts — helpers/ui_server.py send_file), so it
@@ -49,6 +51,7 @@
       <p class="vt-subtitle">Research-only finance tooling for Agent Zero</p>
     </div>
     <div class="vt-header-actions">
+      <a class="vt-btn vt-btn-ghost" href="/" title="Back to the Agent Zero chat">&larr; Agent Zero</a>
       <span class="vt-version-tag" x-text="versionLabel"></span>
       <button class="vt-btn vt-btn-ghost" @click="refresh()" :disabled="loading">
         <span x-show="!loading">Refresh</span>

@@ -25,6 +25,7 @@
 </style>
 </head>
 <body>
+<div style="margin: 0 0 10px; font-size: 12px;"><a href="/" title="Back to the Agent Zero chat">&larr; Agent Zero</a></div>
 <div class="vt-page" x-data="{ stats: null, tools: [] }" x-init="
 Promise.all([
   fetch('/api/plugins/vibe_trading/stats', { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}' }).then(r => r.json()),

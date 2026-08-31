@@ -49,7 +49,10 @@ if PLUGIN_ROOT not in sys.path:
 
 # Theme B: replaced inline dict caches with the shared helpers.cache module.
 # Per-action TTL preserved. helpers.cache is thread-safe.
-from helpers import cache as _cache  # type: ignore
+# NOTE: NOT `from helpers import cache` -- inside the A0 server the framework
+# helpers package shadows the plugin's, and its cache API is (area, key)-shaped
+# with no TTL. This plugin-root module is shadow-proof. See vibe_trading_cache.py.
+import vibe_trading_cache as _cache
 
 _QUOTE_NS = 'dashboard.quote'
 _QUOTE_TTL_SECONDS = 5.0

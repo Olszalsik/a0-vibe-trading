@@ -37,7 +37,10 @@ if PLUGIN_ROOT not in sys.path:
     sys.path.insert(0, PLUGIN_ROOT)
 
 # Phase 4: short TTL cache for list_presets (60s) + list_runs (30s) to keep UI snappy.
-from helpers import cache as _cache  # type: ignore
+# NOTE: NOT `from helpers import cache` -- inside the A0 server the framework
+# helpers package shadows the plugin's, and its cache API is (area, key)-shaped
+# with no TTL. This plugin-root module is shadow-proof. See vibe_trading_cache.py.
+import vibe_trading_cache as _cache
 
 _LIST_PRESETS_NS = 'swarms.list_presets'
 _LIST_PRESETS_TTL_SECONDS = 60.0

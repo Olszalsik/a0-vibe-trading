@@ -1,29 +1,29 @@
 '''
-Vibe-Trading -- shared TTL cache helper.
+Vibe-Trading -- shared TTL cache helper (canonical).
 
-DEPRECATED for use inside API handlers (see AGENTS.md invariant 17):
-this module CANNOT be imported as `from helpers import cache` inside the
-running A0 server -- the FRAMEWORK `helpers` package (/a0/helpers) is
-already in sys.modules and shadows it, and the framework cache has a
-different, (area, key)-shaped API. Handlers must import
-`vibe_trading_cache` (plugin root) instead. This module remains ONLY for
-standalone entry points executed outside the A0 server process
-(execute.py, unit tests).
+WHY THIS FILE EXISTS AT PLUGIN ROOT (not helpers/cache.py):
+Inside the running Agent Zero server, `helpers` is ALREADY in sys.modules as
+the FRAMEWORK package (/a0/helpers). Any plugin handler doing
+`from helpers import cache` therefore gets the framework's cache
+(helpers/cache.py: get(area, key, default) -- NO ttl, two positional args),
+not the plugin's. That shadowing turned every `get(namespace)` call into
+"TypeError: get() missing 1 required positional argument: 'key'" (seen live
+on the dashboard snapshot 2026-09-01: helpers/api.py:80 -> Dashboard.process).
+A top-level module name that the framework does not use cannot be shadowed.
 
-A tiny, thread-safe, in-memory cache the API handlers can use to avoid
-repeated MCP roundtrips on the same query. Each cache entry stores:
-  - fetched_at: epoch seconds when stored
-  - value: the cached payload (any picklable type)
+A tiny, thread-safe, in-memory TTL cache the API handlers use to avoid
+repeated MCP roundtrips on the same query. Each entry stores:
+  - stored-at epoch seconds
+  - value: anything
 
 API:
   - get(key) -> value | None   (None means expired-or-missing)
-  - set(key, value, ttl=30.0)
-  - invalidate(key)            (also invalidates key wildcards 'foo.*')
+  - set(key, value, ttl=30.0)  (ttl_seconds= accepted as an alias)
+  - invalidate(key)            (also invalidates 'foo.*' wildcards)
   - flush()                    (drops everything)
   - stats()                    (-> {hits, misses, expired, sets, size})
 
-We deliberately keep this dependency-free (no redis/pickle) so the
-plugin stays drop-in and self-contained. Theme B of Phase 3.
+Dependency-free on purpose (no redis/pickle) so the plugin stays drop-in.
 
 Single-quote string literals only (plugin-wide constraint).
 '''
