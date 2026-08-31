@@ -184,12 +184,19 @@
         try { localStorage.setItem('vt_active_zoo', id); } catch (_) {}
       },
       openSettings() {
-        if (globalThis.openPluginConfig) globalThis.openPluginConfig('vibe_trading');
-        else if (globalThis.Alpine?.store('plugins')?.openConfig) {
-          globalThis.Alpine.store('plugins').openConfig('vibe_trading');
-        } else {
-          globalThis.location.href = '/plugins/vibe_trading/config.html';
+        // Same contract as dashboard.js openSettings(): the framework's public
+        // API is Alpine.store("pluginSettingsPrototype").openConfig(name).
+        // There is no "plugins" store and no globalThis.openPluginConfig —
+        // calling those silently fell through to a /plugins/... navigation,
+        // which is a BUILT-IN-plugin route that 403s for user plugins (the
+        // empty black screen). Fallback must be the user-plugin webui path.
+        const store = (globalThis.Alpine && globalThis.Alpine.store)
+          ? globalThis.Alpine.store('pluginSettingsPrototype') : null;
+        if (store && typeof store.openConfig === 'function') {
+          store.openConfig('vibe_trading');
+          return;
         }
+        globalThis.location.href = '/usr/plugins/vibe_trading/webui/config.html';
       },
       async refresh(force) {
         try {
