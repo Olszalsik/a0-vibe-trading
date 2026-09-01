@@ -12,7 +12,8 @@ clicked, or the agent falling back to default profiles because the plugin's agen
 discovered. Follow these rules.
 
 ## What this plugin is
-A self-contained A0 plugin (id `vibe_trading`, version `0.2.0`):
+A self-contained A0 plugin (id `vibe_trading`, version `0.1.10` — follows the
+installed upstream `vibe-trading-ai` via `version_sync` auto-sync, invariant 13):
 
 - An MCP server registration — on `install()` the plugin writes a single
   `mcpServers["vibe-trading"]` entry into `usr/settings.json` so A0's MCP client spawns the
@@ -114,11 +115,14 @@ A self-contained A0 plugin (id `vibe_trading`, version `0.2.0`):
     all. If you ever add a real enforcement layer, do it as a separate extension
     (`_20_vibe_trading_risk_guard.py`) that intercepts tool calls, not by changing the persona
     prompt.
-13. **Plugin version is `0.2.0` everywhere.** `plugin.yaml:version`, `hooks.py:PLUGIN_VERSION`,
-    `execute.py:EXPECTED_VERSION`, the `vibe-trading-head.html` meta tag, the banner's `meta`
-    dict, and the README's expected output all agree. `scripts/check_v22_contract.py` does not
-    enforce this, but `execute.py` prints a WARN if `plugin.yaml` disagrees with
-    `EXPECTED_VERSION`. Bump them together.
+13. **Plugin version follows the upstream `vibe-trading-ai` package — keep the three version
+    files in lockstep.** `plugin.yaml:version` is auto-synced to the installed upstream package
+    by `version_sync.sync_plugin_version()` (runs via `hooks.py` post-install / pre_update).
+    `version_sync.py:FALLBACK` and `execute.py:EXPECTED_VERSION` must be bumped by hand to the
+    same value whenever the upstream package version changes (currently `0.1.10`). The banner's
+    `meta` dict derives from `plugin.yaml` (`hooks.py:PLUGIN_VERSION`). WebUI labels
+    (`dashboard.js versionLabel`, `page.html` h1 tag) are hardcoded — bump them in the same
+    commit. `execute.py` prints a WARN if `plugin.yaml` disagrees with `EXPECTED_VERSION`.
 14. **The plugin does NOT install `vibe-trading-ai`.** `hooks.py` only detects whether the
     package is importable (`_is_vibe_trading_installed`) and logs a one-line INFO; the actual
     `pip install vibe-trading-ai` is documented in README and the user does it. Do not add a

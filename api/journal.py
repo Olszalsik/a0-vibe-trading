@@ -74,6 +74,60 @@ def _read_user_journal_path() -> str:
         return ''
 
 
+def _auto_load_uploads() -> bool:
+    """Phase 9: auto_load_uploads from config (default True)."""
+    cfg_path = os.path.join(PLUGIN_ROOT, 'config.json')
+    if not os.path.exists(cfg_path):
+        cfg_path = os.path.join(PLUGIN_ROOT, 'default_config.yaml')
+    try:
+        import yaml
+        with open(cfg_path, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f) or {}
+        return bool(data.get('auto_load_uploads', True))
+    except Exception:
+        return True
+
+
+def _latest_upload() -> str:
+    """Phase 9: newest .csv in journal_uploads/ by mtime; empty string if none."""
+    updir = os.path.join(PLUGIN_ROOT, 'journal_uploads')
+    try:
+        files = [os.path.join(updir, f) for f in os.listdir(updir)
+                 if f.lower().endswith('.csv') and os.path.isfile(os.path.join(updir, f))]
+    except Exception:
+        return ''
+    if not files:
+        return ''
+    return max(files, key=os.path.getmtime)
+
+
+def _resolve_journal_rows():
+    """Phase 9: unified resolver.
+
+    Priority: configured path > newest journal_uploads/*.csv (if enabled) > demo rows.
+    Returns (rows, source, source_file)."""
+    path = _read_user_journal_path()
+    if path and os.path.exists(path):
+        try:
+            import csv
+            with open(path, 'r', encoding='utf-8') as f:
+                rows = list(csv.DictReader(f))
+            return rows, 'user_journal_path', path
+        except Exception:
+            pass
+    if _auto_load_uploads():
+        up = _latest_upload()
+        if up:
+            try:
+                import csv
+                with open(up, 'r', encoding='utf-8') as f:
+                    rows = list(csv.DictReader(f))
+                return rows, 'auto_loaded_upload', up
+            except Exception:
+                pass
+    return _demo_journal_rows(), 'demo_journal_rows', ''
+
+
 def _demo_journal_rows() -> List[Dict[str, Any]]:
     return [
         {'symbol': '0700.HK', 'side': 'BUY', 'qty': 100, 'entry_px': 378.40,
@@ -224,19 +278,8 @@ class JournalHandler(ApiHandler):
         cached = _cache.get(_SUMMARY_NS)
         if cached is not None and isinstance(cached, dict):
             return {**cached, 'cached': True}
-        path = _read_user_journal_path()
-        rows = _demo_journal_rows()
-        source = 'demo_journal_rows'
-        if path and os.path.exists(path):
-            try:
-                import csv
-                with open(path, 'r', encoding='utf-8') as f:
-                    rows = list(csv.DictReader(f))
-                source = 'user_journal_path'
-            except Exception as e:
-                rows = _demo_journal_rows()
-                source = 'demo_journal_rows_fallback_due_to_load_error: ' + str(e)[:60]
-        payload = {'ok': True, 'source': source, 'journal_path_configured': bool(path),
+        rows, source, source_file = _resolve_journal_rows()
+        payload = {'ok': True, 'source': source, 'source_file': source_file, 'journal_path_configured': bool(_read_user_journal_path()),
                    'summary': _summary_from_rows(rows), 'cached': False}
         _cache.set(_SUMMARY_NS, payload, ttl_seconds=_SUMMARY_TTL_SECONDS)
         return payload
@@ -245,18 +288,8 @@ class JournalHandler(ApiHandler):
         cached = _cache.get(_BEHAVIORS_NS)
         if cached is not None and isinstance(cached, dict):
             return {**cached, 'cached': True}
-        path = _read_user_journal_path()
-        rows = _demo_journal_rows()
-        source = 'demo_journal_rows'
-        if path and os.path.exists(path):
-            try:
-                import csv
-                with open(path, 'r', encoding='utf-8') as f:
-                    rows = list(csv.DictReader(f))
-                source = 'user_journal_path'
-            except Exception:
-                source = 'demo_journal_rows_fallback'
-        payload = {'ok': True, 'source': source, 'behaviors': _behaviors_from_rows(rows), 'cached': False}
+        rows, source, source_file = _resolve_journal_rows()
+        payload = {'ok': True, 'source': source, 'source_file': source_file, 'behaviors': _behaviors_from_rows(rows), 'cached': False}
         _cache.set(_BEHAVIORS_NS, payload, ttl_seconds=_BEHAVIORS_TTL_SECONDS)
         return payload
 
@@ -269,19 +302,9 @@ class JournalHandler(ApiHandler):
             max_rows = int(input.get('max_rows', 20) or 20)
         except Exception:
             max_rows = 20
-        path = _read_user_journal_path()
-        rows = _demo_journal_rows()
-        source = 'demo_journal_rows'
-        if path and os.path.exists(path):
-            try:
-                import csv
-                with open(path, 'r', encoding='utf-8') as f:
-                    rows = list(csv.DictReader(f))
-                source = 'user_journal_path'
-            except Exception as e:
-                source = 'demo_journal_rows_fallback_due_to_load_error: ' + str(e)[:60]
+        rows, source, source_file = _resolve_journal_rows()
         sliced = rows[:max_rows]
-        payload = {'ok': True, 'source': source, 'count': len(sliced),
+        payload = {'ok': True, 'source': source, 'source_file': source_file, 'count': len(sliced),
                    'entries': sliced, 'cached': False}
         _cache.set(cache_key, payload, ttl_seconds=_ENTRIES_TTL_SECONDS)
         return payload

@@ -343,7 +343,7 @@ function vibeTradingJournal() {
  var j = await r.json();
  if (j && j.ok) {
  this.entries = j.entries || [];
- this.entriesSource = j.source;
+ this.entriesSource = j.source + (j.source_file ? ' (' + String(j.source_file).split('/').pop() + ')' : '');
  } else {
  this.entries = [];
  this.entriesSource = 'load_error: ' + (j && j.error || '?');

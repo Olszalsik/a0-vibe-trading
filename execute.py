@@ -31,7 +31,7 @@ if _SCRIPTS not in sys.path:
 
 
 PLUGIN_NAME = "vibe_trading"
-EXPECTED_VERSION = "0.2.0"
+EXPECTED_VERSION = "0.1.10"
 def _print(msg: str) -> None:
     print(msg, flush=True)
 

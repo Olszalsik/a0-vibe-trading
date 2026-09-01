@@ -2,7 +2,7 @@
 
 This document is the end-user manual for the Vibe-Trading Agent Zero plugin. It covers quick-start, usage patterns, keyboard shortcuts, settings, troubleshooting, and safety.
 
-**Plugin version:** 0.5.1 (Phase 5B complete). See `README.md` for the capability matrix, install instructions, and file index.
+**Plugin version:** 0.1.10 (Phase 9 complete; version follows the upstream `vibe-trading-ai` package via hooks auto-sync — all three version files stay in lockstep). See `README.md` for the capability matrix, install instructions, and file index.
 
 ## Table of contents
 
@@ -36,6 +36,8 @@ Open one of these in your browser:
 | `/usr/plugins/vibe_trading/webui/dashboard.html` | 8-tab research console |
 | `/usr/plugins/vibe_trading/webui/deepdive.html` | Single-symbol aggregator |
 | `/usr/plugins/vibe_trading/webui/skills.html` | 79-skill browser |
+| `/usr/plugins/vibe_trading/webui/risk.html` | Risk-tier guard + connector reads |
+| `/usr/plugins/vibe_trading/webui/journal.html` | Trade journal, CSV upload, tier-transition audit log |
 | `/usr/plugins/vibe_trading/webui/main.html` | Live tool list + status |
 
 NOTE: only files under `webui/` (and `extensions/webui/`) are served — a
@@ -144,7 +146,7 @@ Full endpoint list (12 handlers):
 
 ## Keyboard shortcuts
 
-Every page that loads `webui/shared.js` (Dashboard, Skills, Deep Dive) responds to these chord shortcuts. Press `?` on any page to open the in-app help modal.
+Every page that loads `webui/shared.js` (Dashboard, Skills, Deep Dive, Risk Guard, Journal) responds to these chord shortcuts. Press `?` on any page to open the in-app help modal.
 
 ### Global (work everywhere)
 
@@ -174,6 +176,8 @@ Every page that loads `webui/shared.js` (Dashboard, Skills, Deep Dive) responds 
 | `g s` | Dashboard / Deep Dive | **Skills** page |
 | `g dd` | Dashboard | **Deep Dive** page |
 | `g d` | Skills / Deep Dive | **Dashboard** |
+| `g rg` | Journal | **Risk Guard** page |
+| `g j` | Risk Guard | **Journal** page |
 
 Chord shortcuts use the `g` mnemonic (for "go to"). Press `g`, release, then press the second key within 1.5 seconds.
 
@@ -187,6 +191,8 @@ These persist across reloads via `localStorage` under the `vibe_trading_ui.` pre
 | `skills.query` | Last search query | Skills |
 | `skills.activeCat` | Last selected category chip | Skills |
 | `deepdive.lastSymbol` | Last symbol entered | Deep Dive (when no `?symbol=` URL param) |
+| `journal.maxRows` | Journal entries page size | Journal |
+| `risk.simTarget` | Last simulated target tier | Risk Guard |
 
 ### Tip: backup your preferences
 
@@ -196,6 +202,18 @@ These persist across reloads via `localStorage` under the `vibe_trading_ui.` pre
 4. To restore on another machine: open the same tab, click **Import preferences**, pick the file
 
 ---
+
+## Journal page (Phase 7/8/9)
+
+The Journal page combines three features:
+
+1. **KPIs + behaviours** — win rate, avg P&L, holding period and behavioural diagnostics (disposition effect, overtrading, chasing, anchoring), computed from the active journal source.
+2. **CSV upload** — pick any broker-exported CSV (max 5 MB, must parse with a header row + at least one data row). Files are stored at `journal_uploads/<UTC-timestamp>_<name>.csv` at the plugin root. Upload auto-invalidates the journal cache and refreshes KPIs/entries immediately.
+3. **Tier-transition audit log** — an append-only `journal_transitions.jsonl` recording `from_tier -> to_tier` changes (research/paper/live) with actor, note and UTC timestamp. Logging requires an explicit confirmation checkbox.
+
+**Auto-load (Phase 9):** row resolution order is: configured `trade_journal_path` (config.json) > newest `journal_uploads/*.csv` by mtime (if `auto_load_uploads` is true, the default) > built-in demo rows. The `source` line under Recent entries shows which file was used, e.g. `auto_loaded_upload (20260818T124001Z_mytrades.csv)`.
+
+**Safety:** the journal is read/append-only. Uploads are validated (extension, size, base64 integrity, CSV parse) and never executed; the audit log can only be appended to, never edited from the UI.
 
 ## Settings reference
 
@@ -307,7 +325,10 @@ For live execution outside this plugin, the upstream Vibe-Trading CLI supports o
 | Phase 3 — deep-dive + skills + cache | ✅ Live |
 | Phase 4 — MCP result caching | ✅ Live |
 | Phase 5 — shared UI helper layer | ✅ Live |
-| Phase 5B — page-level wiring | ✅ Live at v0.5.1 |
-| Phase 6 — live-trade risk guard | ⏳ optional, gated |
+| Phase 5B — page-level wiring | ✅ Live |
+| Phase 6 — live-trade risk guard (gated) | ✅ Live |
+| Phase 7 — trade journal + tier-transition audit log | ✅ Live |
+| Phase 8 — manual journal CSV upload (5 MB, validated) | ✅ Live |
+| Phase 9 — auto-load newest upload on read (`auto_load_uploads`) | ✅ Live |
 
-Phase 6 is opt-in: it adds a risk-tier gate and broker connector detection for users who explicitly want to leave `risk_tier: research`. The default `research` tier keeps the plugin read-only.
+Phase 6 is opt-in: it adds a risk-tier gate and broker connector detection for users who explicitly want to leave `risk_tier: research`. The default `research` tier keeps the plugin read-only. No order-placement tool exists anywhere in the plugin; live promotion requires an explicit config/env change plus an Agent Zero restart, and is recorded in the audit log.
