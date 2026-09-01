@@ -47,6 +47,13 @@ function vibeTradingDashboard() {
       result: null
     },
 
+    patterns: {
+      loading: 0,
+      error: '',
+      result: null,
+      cached: false
+    },
+
     // ----- lifecycle --------------------------------------------
     init() {
       const meta = document.querySelector('meta[name="vibe-trading-plugin"]');
@@ -151,6 +158,28 @@ function vibeTradingDashboard() {
       }
     },
 
+    async detectPatterns() {
+      const runDir = (this.backtest.runDir || '').trim();
+      if (!runDir) {
+        this.patterns.error = 'enter a run_dir first (patterns read run_dir/artifacts/ohlcv_*.csv)';
+        return;
+      }
+      this.patterns.loading = true;
+      this.patterns.error = '';
+      this.patterns.result = null;
+      try {
+        const res = await this.callApi('patterns', { run_dir: runDir });
+        if (!res || !res.success) {
+          this.patterns.error = (res && res.error) || 'pattern recognition failed';
+          return;
+        }
+        this.patterns.result = res.data || res.raw || null;
+        this.patterns.cached = !!res.cached;
+      } finally {
+        this.patterns.loading = 0;
+      }
+    },
+
     openSettings() {
       const store = window.Alpine && window.Alpine.store ? window.Alpine.store('pluginSettingsPrototype') : null;
       if (store && typeof store.openConfig === 'function') {
@@ -162,6 +191,12 @@ function vibeTradingDashboard() {
     },
 
     // ----- formatting -------------------------------------------
+    get patternsResultText() {
+      const r = this.patterns.result;
+      if (r == null) return '';
+      if (typeof r === 'string') return r;
+      try { return JSON.stringify(r, null, 2); } catch (e) { return String(r); }
+    },
     normaliseQuotes(payload) {
       let bars = [];
       if (Array.isArray(payload)) bars = payload;

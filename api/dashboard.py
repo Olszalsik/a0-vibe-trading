@@ -18,6 +18,9 @@ Actions (selected via input_data["action"]):
     backtest  — proxy to MCP `backtest(run_dir=...)`. Caller supplies a
                   fully-built run_dir (config.json + code/signal_engine.py).
                   No caching — every call runs a fresh backtest.
+    patterns  — proxy to MCP `pattern_recognition(run_dir=...)`: chart-pattern
+                  detection over run_dir/artifacts/ohlcv_*.csv. 30min cache
+                  (patterns derive from stored CSVs, not live data).
     factor    — proxy to MCP `factor_analysis(codes=[...], factor_name=...,
                   start_date=..., end_date=..., source="auto", top_n=10,
                   bottom_n=10)`. No caching.
@@ -68,6 +71,9 @@ _BACKTEST_TTL_SECONDS = 86400.0  # 24h
 
 _FACTOR_NS = 'dashboard.factor'
 _FACTOR_TTL_SECONDS = 86400.0  # 24h
+
+_PATTERNS_NS = 'dashboard.patterns'
+_PATTERNS_TTL_SECONDS = 1800.0  # 30min -- patterns derive from stored OHLCV CSVs
 
 
 def _factor_cache_key(payload: Dict[str, Any]) -> str:
@@ -177,6 +183,42 @@ async def _backtest(run_dir: str) -> Dict[str, Any]:
     return res
 
 
+async def _patterns(run_dir: str) -> Dict[str, Any]:
+    """Chart-pattern detection over a backtest run's OHLCV artifacts.
+
+    Upstream `pattern_recognition` reads run_dir/artifacts/ohlcv_*.csv, so
+    this complements a backtest run rather than a bare symbol lookup.
+    """
+    run_dir = (run_dir or '').strip()
+    if not run_dir:
+        return {'ok': False, 'error': 'run_dir is required (path to a backtest run directory containing artifacts/ohlcv_*.csv)'}
+    cmd = _resolve_mcp_cmd()
+    if not cmd:
+        return {'ok': False, 'error': 'vibe-trading-mcp not on PATH'}
+    # Older upstream builds (< 0.1.10) lack the tool; surface a clear message.
+    try:
+        from api.tools import _get_tools
+        tools_res = await _get_tools(force=False)
+        names = tools_res.get('tools') or []
+        if names and 'pattern_recognition' not in names:
+            return {
+                'ok': False,
+                'error': 'pattern_recognition is not exposed by the installed vibe-trading-mcp '
+                         '(needs upstream >= 0.1.10). Re-run: pip install -U vibe-trading-ai',
+            }
+    except Exception:
+        pass  # probe is best-effort; the direct call will error if the tool is missing
+
+    cache_k = _PATTERNS_NS + '|' + run_dir
+    hit = _cache.get(cache_k)
+    if hit is not None:
+        return {'ok': True, 'cached': True, **hit}
+    res = await _call_tool(cmd, 'pattern_recognition', {'run_dir': run_dir}, outer_timeout=90.0, inner_timeout=80.0)
+    if res.get('ok'):
+        _cache.set(cache_k, {'data': res.get('data', res.get('raw'))}, ttl=_PATTERNS_TTL_SECONDS)
+    return res
+
+
 async def _factor(payload: Dict[str, Any]) -> Dict[str, Any]:
     codes = payload.get('codes') or []
     factor_name = payload.get('factor_name') or ''
@@ -262,9 +304,14 @@ class Dashboard(ApiHandler):
             ok = bool(res.get('ok'))
             return {'success': ok, 'action': action, **res}
 
+        if action == 'patterns':
+            res = await _patterns(input_data.get('run_dir') or '')
+            ok = bool(res.get('ok'))
+            return {'success': ok, 'action': action, **res}
+
         if action == 'factor':
             res = await _factor(input_data)
             ok = bool(res.get('ok'))
             return {'success': ok, 'action': action, **res}
 
-        return {'success': False, 'error': f"unknown action: {action!r} (expected one of: snapshot, quote, backtest, factor)"}
+        return {'success': False, 'error': f"unknown action: {action!r} (expected one of: snapshot, quote, backtest, factor, patterns)"}

@@ -123,6 +123,19 @@
 
  <div x-show="loading" class="empty">Fetching profile, financials, news, price&hellip;</div>
 
+ <!-- pattern_recognition upstream tool takes a backtest run_dir (it reads
+      run_dir/artifacts/ohlcv_*.csv), not a symbol, so pattern detection lives
+      on the Dashboard Backtest tab. -->
+ <div class="card" style="margin-top: 4px;" x-show="result">
+ <h2>Chart patterns</h2>
+ <div class="meta">
+ Pattern detection needs a backtest run directory (the upstream
+ <code>pattern_recognition</code> tool reads <code>run_dir/artifacts/ohlcv_*.csv</code>).
+ Run it from the
+ <a href="/usr/plugins/vibe_trading/webui/dashboard.html" style="color: var(--vt-accent);">Dashboard Backtest tab &rarr;</a>
+ </div>
+ </div>
+
  <template x-if="result">
  <div class="grid">
  <div class="card quote-card">

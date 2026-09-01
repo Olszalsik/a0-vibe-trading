@@ -199,6 +199,15 @@
           <span x-show="!backtest.loading">Run</span>
           <span x-show="backtest.loading">Running...</span>
         </button>
+        <button
+          class="vt-btn vt-btn-ghost"
+          @click="detectPatterns()"
+          :disabled="backtest.loading || patterns.loading || !backtest.runDir.trim()"
+          title="Detect chart patterns over this run's OHLCV artifacts (pattern_recognition tool, upstream >= 0.1.10)"
+        >
+          <span x-show="!patterns.loading">Detect chart patterns</span>
+          <span x-show="patterns.loading">Scanning...</span>
+        </button>
       </div>
 
       <div x-show="backtest.error" class="vt-error" x-text="backtest.error"></div>
@@ -206,6 +215,12 @@
       <div class="vt-result" x-show="backtest.result">
         <h4>Result</h4>
         <pre x-text="JSON.stringify(backtest.result, null, 2)"></pre>
+      </div>
+
+      <div class="vt-result" x-show="patterns.error || patterns.result">
+        <h4>Chart patterns</h4>
+        <div x-show="patterns.error" class="vt-error" x-text="patterns.error"></div>
+        <pre x-show="patterns.result" x-text="patternsResultText"></pre>
       </div>
     </div>
   </section>
