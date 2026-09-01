@@ -198,7 +198,7 @@ function vibeTradingSkills() {
  async refresh(force) {
  this.loading = true;
  try {
- const res = await fetch(window.location.pathname.replace(/skills\.html$/, 'api') + '/', {
+ const res = await fetch('/api/plugins/vibe_trading/skills', {
  method: 'POST',
  headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
  credentials: 'same-origin',
@@ -222,7 +222,7 @@ function vibeTradingSkills() {
  this.modal.name = name;
  this.modal.body = 'Loading&hellip;';
  try {
- const res = await fetch(window.location.pathname.replace(/skills\.html$/, 'api') + '/', {
+ const res = await fetch('/api/plugins/vibe_trading/skills', {
  method: 'POST',
  headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
  credentials: 'same-origin',

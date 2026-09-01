@@ -117,13 +117,12 @@ def _validate_csv_text(text):
 
 
 def _invalidate_journal_cache():
+    # vibe_trading_cache.invalidate() supports 'foo.*' wildcards; there is no
+    # keys() introspection on the cache, so just nuke the journal namespace.
     try:
-        keys = _cache.keys() if hasattr(_cache, 'keys') else []
+        _cache.invalidate('journal.*')
     except Exception:
-        keys = []
-    for k in list(keys):
-        if isinstance(k, str) and k.startswith('journal.'):
-            _cache.invalidate(k)
+        pass
 
 
 class JournalUploadHandler(ApiHandler):

@@ -98,7 +98,18 @@ def _latest_upload() -> str:
         return ''
     if not files:
         return ''
-    return max(files, key=os.path.getmtime)
+
+    def _safe_mtime(p: str) -> float:
+        try:
+            return os.path.getmtime(p)
+        except OSError:
+            return 0.0
+
+    newest = max(files, key=_safe_mtime)
+    if _safe_mtime(newest) == 0.0:
+        # every candidate vanished between listing and stat
+        return ''
+    return newest
 
 
 def _resolve_journal_rows():
@@ -151,7 +162,7 @@ def _demo_journal_rows() -> List[Dict[str, Any]]:
     ]
 
 
-def _summary_from_rows(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _summary_from_rows(rows: List[Dict[str, Any]], is_demo: bool = False) -> Dict[str, Any]:
     if not rows:
         return {
             'total_roundtrips': 0, 'win_rate_pct': 0.0, 'pnl_pct_avg': 0.0,
@@ -181,7 +192,7 @@ def _summary_from_rows(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
         'best_symbol': {'symbol': best[0], 'avg_pnl_pct': round(best[1], 2)} if best[0] else None,
         'worst_symbol': {'symbol': worst[0], 'avg_pnl_pct': round(worst[1], 2)} if worst[0] else None,
         'markets': markets,
-        'is_demo': True,
+        'is_demo': bool(is_demo),
     }
 
 
@@ -280,7 +291,8 @@ class JournalHandler(ApiHandler):
             return {**cached, 'cached': True}
         rows, source, source_file = _resolve_journal_rows()
         payload = {'ok': True, 'source': source, 'source_file': source_file, 'journal_path_configured': bool(_read_user_journal_path()),
-                   'summary': _summary_from_rows(rows), 'cached': False}
+                   'summary': _summary_from_rows(rows, is_demo=source.startswith('demo')),
+                   'cached': False}
         _cache.set(_SUMMARY_NS, payload, ttl_seconds=_SUMMARY_TTL_SECONDS)
         return payload
 
@@ -314,9 +326,12 @@ class JournalHandler(ApiHandler):
         if cached is not None and isinstance(cached, dict):
             return {**cached, 'cached': True}
         rows = _read_transitions()
+        total = len(rows)
+        # Return the newest 200 to the UI; the append-only file keeps growing.
+        rows = rows[-200:]
         rows.reverse()
         payload = {'ok': True, 'log_path': TRANSITIONS_LOG, 'count': len(rows),
-                   'transitions': rows, 'cached': False}
+                   'total_logged': total, 'transitions': rows, 'cached': False}
         _cache.set(_TRANSITIONS_NS, payload, ttl_seconds=_TRANSITIONS_TTL_SECONDS)
         return payload
 

@@ -28,4 +28,5 @@ webui:
 - watch.html
 - portfolio.html
 - dashboard.css
-- shared.js
+- dashboard.js
+- thumbnail.png

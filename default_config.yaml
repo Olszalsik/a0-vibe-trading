@@ -72,6 +72,19 @@ risk_tier: research
 # at the MCP layer.
 max_drawdown_pct: 20
 
+# ---------------------------------------------------------------------------
+# Trade journal
+# ---------------------------------------------------------------------------
+
+# Path to a broker-exported CSV of closed roundtrips (optional). When set and
+# the file exists it wins; otherwise the newest CSV uploaded on the Journal
+# page (journal_uploads/*.csv) is used if auto_load_uploads is on; failing
+# that, demo rows are shown.
+trade_journal_path: ""
+
+# Auto-load the newest journal_uploads/*.csv when no journal CSV path is set.
+auto_load_uploads: true
+
 # Force-shadow-only: even if the user picks a live connector profile,
 # the agent must surface every would-be order for explicit confirmation
 # before any tool is allowed to act on it. Strongly recommended on.

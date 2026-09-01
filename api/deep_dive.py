@@ -180,7 +180,7 @@ def _namespace_payload(symbol: str, force: bool, payload: Dict[str, Any]) -> Dic
 
 
 class DeepDive(ApiHandler):
-    async def process(self, payload: Dict[str, Any], context: Any = None) -> Dict[str, Any]:
+    async def process(self, payload: Dict[str, Any], request: Any = None) -> Dict[str, Any]:
         # NOTE: NOT `from helpers import cache` -- inside the A0 server the framework
         # helpers package shadows the plugin's, and its cache API is (area, key)-shaped
         # with no TTL. This plugin-root module is shadow-proof. See vibe_trading_cache.py.

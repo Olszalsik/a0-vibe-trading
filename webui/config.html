@@ -199,6 +199,27 @@ tool is allowed to act on it.</small>
 </div>
 
 <!-- =========================================================== -->
+<div class="settings-section">
+<h4 style="margin: 0 0 8px 0;">Trade journal</h4>
+<small>Where the <a href="/usr/plugins/vibe_trading/webui/journal.html" target="_blank">Journal page</a>
+reads your roundtrips from.</small>
+</div>
+
+<div class="settings-section">
+<label>Journal CSV path (optional)</label>
+<input type="text" x-model="config.trade_journal_path" placeholder="e.g. C:/exports/roundtrips.csv" />
+<small>Path to a broker-exported CSV of closed roundtrips. When set and the file exists it wins;
+otherwise the newest CSV uploaded on the Journal page is used; failing that, demo rows.</small>
+</div>
+
+<div class="settings-section">
+<label><input type="checkbox" x-model="config.auto_load_uploads" />
+Auto-load the newest uploaded CSV (recommended)</label>
+<small>When on and no journal CSV path is configured, the Journal page shows the most recent file
+uploaded via its CSV upload card.</small>
+</div>
+
+<!-- =========================================================== -->
 <!-- Save + status                                                -->
 <!-- =========================================================== -->
 <hr style="margin: 16px 0; opacity: 0.3;" />

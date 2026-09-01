@@ -96,9 +96,10 @@ class Portfolio(ApiHandler):
 
         if action == 'summary':
             cache_k = _SUMMARY_NS
-            hit = _cache.get(cache_k)
-            if hit is not None:
-                return {'success': True, 'action': action, 'cached': True, **hit}
+            if not bool(input_data.get('force')):
+                hit = _cache.get(cache_k)
+                if hit is not None:
+                    return {'success': True, 'action': action, 'cached': True, **hit}
 
             cmd = shutil.which('vibe-trading-mcp')
             if not cmd:

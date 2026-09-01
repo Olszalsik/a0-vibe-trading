@@ -98,13 +98,13 @@
       </div>
       <div class="vt-stat-tile">
         <div class="vt-stat-label">Toggle state</div>
-        <div class="vt-stat-value" x-text="(overview.stats && overview.stats.toggle_state) || '—'"></div>
+        <div class="vt-stat-value" x-text="overview.stats ? (overview.stats.mcp_enabled_in_config ? (overview.stats.mcp_registered_in_settings ? 'on' : 'enabled, not registered') : 'off') : '—'"></div>
       </div>
       <div class="vt-stat-tile">
         <div class="vt-stat-label">Package installed</div>
-        <div class="vt-stat-value" x-text="(overview.stats && overview.stats.installed) ? 'yes' : 'no'"></div>
-        <div class="vt-stat-meta" x-show="overview.stats && overview.stats.package_version">
-          v<span x-text="overview.stats.package_version"></span>
+        <div class="vt-stat-value" x-text="(overview.stats && overview.stats.vibe_trading_ai_installed) ? 'yes' : 'no'"></div>
+        <div class="vt-stat-meta" x-show="overview.stats && overview.stats.vibe_trading_ai_version">
+          v<span x-text="overview.stats.vibe_trading_ai_version"></span>
         </div>
       </div>
     </div>

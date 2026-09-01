@@ -36,6 +36,7 @@ import json
 import os
 import re
 import sys
+import threading
 import uuid
 from typing import Any, Dict, List, Optional
 
@@ -54,6 +55,11 @@ CONDITIONS = ('price_above', 'price_below')
 
 _CLOSE_KEYS = ('close', 'Close', 'close_price', 'last', 'price')
 _ROW_KEYS = ('data', 'rows', 'bars', 'items', 'records')
+
+# Serializes the read-modify-write cycles in add/remove/check so two
+# concurrent requests cannot lose a rule (watch_rules.json has no other
+# locking; a simple process-wide lock is enough for the WebUI use case).
+_rules_lock = threading.Lock()
 
 
 def _read_watches() -> List[Dict[str, Any]]:
@@ -197,28 +203,30 @@ class Watch(ApiHandler):
             if threshold <= 0:
                 return {'success': False, 'error': 'threshold must be > 0'}
 
-            watches = _read_watches()
-            rule = {
-                'id': _new_id(),
-                'symbol': symbol,
-                'source': (input_data.get('source') or 'auto').strip() or 'auto',
-                'condition': condition,
-                'threshold': threshold,
-                'note': str(input_data.get('note') or '')[:200],
-                'created': time_now_iso(),
-            }
-            watches.append(rule)
-            if not _write_watches(watches):
-                return {'success': False, 'error': 'could not write watch_rules.json'}
+            with _rules_lock:
+                watches = _read_watches()
+                rule = {
+                    'id': _new_id(),
+                    'symbol': symbol,
+                    'source': (input_data.get('source') or 'auto').strip() or 'auto',
+                    'condition': condition,
+                    'threshold': threshold,
+                    'note': str(input_data.get('note') or '')[:200],
+                    'created': time_now_iso(),
+                }
+                watches.append(rule)
+                if not _write_watches(watches):
+                    return {'success': False, 'error': 'could not write watch_rules.json'}
             return {'success': True, 'watches': watches}
 
         if action == 'remove':
             rid = str(input_data.get('id') or '').strip()
-            watches = _read_watches()
-            remaining = [w for w in watches if w.get('id') != rid]
-            if len(remaining) == len(watches):
-                return {'success': False, 'error': 'no rule with id: ' + repr(rid)}
-            _write_watches(remaining)
+            with _rules_lock:
+                watches = _read_watches()
+                remaining = [w for w in watches if w.get('id') != rid]
+                if len(remaining) == len(watches):
+                    return {'success': False, 'error': 'no rule with id: ' + repr(rid)}
+                _write_watches(remaining)
             return {'success': True, 'watches': remaining}
 
         if action == 'check':

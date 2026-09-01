@@ -84,10 +84,6 @@ def _factor_cache_key(payload: Dict[str, Any]) -> str:
     return _FACTOR_NS + '|' + h[:16]
 
 
-def _quote_cache_str(codes: Tuple[str, ...], source: str) -> str:
-    return _QUOTE_CACHE_NS + '|' + ','.join(codes) + '|' + (source or 'auto')
-
-
 def _resolve_mcp_cmd() -> Optional[str]:
     return shutil.which('vibe-trading-mcp')
 

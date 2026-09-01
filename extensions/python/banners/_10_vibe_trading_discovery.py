@@ -48,6 +48,14 @@ def _vibe_trading_ai_installed() -> bool:
         return False
 
 
+def _vibe_trading_ai_version() -> str:
+    try:
+        import importlib.metadata as md
+        return md.version("vibe-trading-ai") or ""
+    except Exception:
+        return ""
+
+
 def _console_script_exists() -> bool:
     return shutil.which("vibe-trading-mcp") is not None
 
@@ -92,8 +100,15 @@ def execute(banners: list, **kwargs):
     if not _console_script_exists():
         return
 
+    # NOTE: run the async probe in its own thread — `execute()` may be invoked
+    # while the server's event loop is already running, and asyncio.run() would
+    # raise "cannot be called from a running event loop" (previously swallowed
+    # here, permanently hiding the banner on healthy installs).
+    live = False
     try:
-        live = asyncio.run(_mcp_live(timeout=3.0))
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as _ex:
+            live = bool(_ex.submit(asyncio.run, _mcp_live(timeout=3.0)).result(timeout=6.0))
     except Exception:
         live = False
     if not live:
@@ -120,6 +135,8 @@ def execute(banners: list, **kwargs):
         "meta": {
             "plugin": PLUGIN_NAME,
             "mcp_command": shutil.which("vibe-trading-mcp"),
-            "version": "0.2.0",
+            # Follow the installed upstream package (version_sync policy);
+            # the banner only renders when the package IS installed.
+            "version": _vibe_trading_ai_version() or "unknown",
         },
     })

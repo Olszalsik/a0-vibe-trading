@@ -224,7 +224,7 @@ function vibeTradingDeepDive() {
  if (!sym) { this.status = 'symbol required'; return; }
  this.loading = true; this.status = 'fetching'; this.cached = false;
  try {
- const res = await fetch(window.location.pathname.replace(/deepdive\.html$/, 'api') + '/', {
+ const res = await fetch('/api/plugins/vibe_trading/deep_dive', {
  method: 'POST',
  headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
  credentials: 'same-origin',
