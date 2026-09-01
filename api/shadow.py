@@ -10,6 +10,10 @@ Action 'run_loop' drives the full Shadow protocol:
   4. render_shadow_report(shadow_id, include_today_signals=True)
   5. scan_shadow_signals(shadow_id, date=today, per_market=3)
 
+Action 'report_html' reads a previously rendered report artifact
+(path returned by run_loop as report_path) and returns its text so the
+WebUI can display it. Read-only, size-capped.
+
 Each step is bounded by asyncio.wait_for(...). Failed steps are recorded
 in steps[].error and do not abort the chain.
 
@@ -93,7 +97,8 @@ async def _run_loop(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     cache_key = (journal_path, min_support, max_rules, ','.join(markets))
     now = time.time()
-    if _CACHE['key'] == cache_key and (now - _CACHE['fetched_at']) < _CACHE_TTL_SECONDS:
+    if not bool(payload.get('force')) and _CACHE['key'] == cache_key \
+            and (now - _CACHE['fetched_at']) < _CACHE_TTL_SECONDS:
         return {'ok': True, 'cached': True, **_CACHE['report']}
 
     today = time.strftime('%Y-%m-%d')
@@ -172,11 +177,22 @@ async def _run_loop(payload: Dict[str, Any]) -> Dict[str, Any]:
         {'shadow_id': shadow_id, 'include_today_signals': True, 'journal_path': journal_path},
         120.0, 110.0,
     )
+    report_data = report_call.get('data') if report_call.get('ok') else None
+    report_path = ''
+    if isinstance(report_data, dict):
+        for k in ('report_path', 'html_path', 'output_path', 'path', 'file', 'filename'):
+            v = report_data.get(k)
+            if isinstance(v, str) and v.strip():
+                report_path = v.strip()
+                break
+    elif isinstance(report_data, str) and report_data.strip():
+        report_path = report_data.strip()
     steps_out.append({
         'step': 4,
         'name': 'render_shadow_report',
         'ok': bool(report_call.get('ok')),
         'error': report_call.get('error'),
+        'report_path': report_path or None,
     })
 
     signals = await _call_tool(
@@ -197,6 +213,7 @@ async def _run_loop(payload: Dict[str, Any]) -> Dict[str, Any]:
     report = {
         'steps': steps_out,
         'shadow_id': shadow_id,
+        'report_path': report_path or None,
         'ok_count': ok_count,
         'summary': 'all 5 steps succeeded' if ok_count == len(steps_out) else str(ok_count) + '/' + str(len(steps_out)) + ' steps succeeded',
     }
@@ -207,11 +224,39 @@ async def _run_loop(payload: Dict[str, Any]) -> Dict[str, Any]:
     return {'ok': True, 'cached': False, **report}
 
 
+_REPORT_MAX_BYTES = 2 * 1024 * 1024
+
+
+def _read_report_html(path: str) -> Dict[str, Any]:
+    p = (path or '').strip()
+    if not p:
+        return {'ok': False, 'error': 'path is required'}
+    if not os.path.isabs(p):
+        return {'ok': False, 'error': 'path must be absolute'}
+    if not os.path.isfile(p):
+        return {'ok': False, 'error': 'report file not found: ' + p}
+    try:
+        size = os.path.getsize(p)
+    except OSError as e:
+        return {'ok': False, 'error': 'stat failed: ' + str(e)}
+    if size > _REPORT_MAX_BYTES:
+        return {'ok': False, 'error': 'report too large to display (' + str(size) + ' bytes)'}
+    try:
+        with open(p, 'r', encoding='utf-8', errors='replace') as f:
+            text = f.read()
+    except Exception as e:
+        return {'ok': False, 'error': 'read failed: ' + str(e)}
+    return {'ok': True, 'path': p, 'size_bytes': size, 'html': text}
+
+
 class Shadow(ApiHandler):
     async def process(self, input_data: Dict[str, Any], request) -> Dict[str, Any]:
         action = str(input_data.get('action') or 'run_loop').strip().lower()
+        if action == 'report_html':
+            return {'success': True, 'action': action, **_read_report_html(str(input_data.get('path') or ''))}
+
         if action != 'run_loop':
-            return {'success': False, 'error': "unknown action: '" + action + "' (expected 'run_loop')"}
+            return {'success': False, 'error': "unknown action: '" + action + "' (expected 'run_loop' or 'report_html')"}
 
         res = await _run_loop(input_data)
         ok = bool(res.get('ok'))

@@ -31,6 +31,16 @@
   </section>
   <div class="vt-card">
     <h3>Run loop</h3>
+    <p class="vt-meta" x-show="uploads.length">
+      Pick a previously uploaded journal CSV:
+      <select @change="pickUpload($event.target.value)" style="max-width: 420px;">
+        <option value="">— choose upload —</option>
+        <template x-for="u in uploads" :key="u.path">
+          <option :value="u.path" x-text="u.filename + ' · ' + u.created_iso.slice(0, 10)"></option>
+        </template>
+      </select>
+      or paste a path below (you can upload new CSVs on the <a href="/usr/plugins/vibe_trading/webui/journal.html">Journal page</a>).
+    </p>
     <div class="vt-form-row">
       <label class="vt-field"><span>Journal file path (CSV/Excel)</span><input type="text" x-model="journalPath" placeholder="/a0/usr/workdir/uploads/my_journal.csv" /></label>
       <label class="vt-field vt-field-narrow"><span>Min support</span><input type="number" min="1" x-model.number="minSupport" /></label>
@@ -40,6 +50,17 @@
         <span x-show="!loading">Run loop</span>
         <span x-show="loading">Running...</span>
       </button>
+    </div>
+  </div>
+  <div class="vt-card" x-show="reportPath">
+    <h3>Rendered report</h3>
+    <p class="vt-meta">Artifact: <code x-text="reportPath"></code></p>
+    <button class="vt-btn vt-btn-ghost vt-btn-small" @click="viewReport()" :disabled="reportLoading">
+      <span x-show="reportHtml === null">View HTML report</span>
+      <span x-show="reportHtml !== null">Loading...</span>
+    </button>
+    <div x-show="reportHtml && reportHtml !== 'loading'" style="margin-top: 10px;">
+      <iframe :srcdoc="reportHtml" style="width: 100%; height: 70vh; border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; background: #fff;"></iframe>
     </div>
   </div>
   <div class="vt-card" x-show="steps.length">
@@ -76,6 +97,10 @@ function shadowPage() {
     marketsText: 'china_a, hk, us, crypto',
     statusMessage: '',
     loading: 0,
+    uploads: [],
+    reportPath: '',
+    reportHtml: null,
+    reportLoading: 0,
     steps: [],
     summary: '',
     report: null,
@@ -88,12 +113,45 @@ function shadowPage() {
         body: JSON.stringify(Object.assign({ action: 'run_loop' }, payload || {})),
       }).then(function(r){ return r.json(); }).catch(function(e){ return { success: 0, error: 'network: ' + (e && e.message) }; });
     },
-    init: function() {},
+    init: function() {
+      var self = this;
+      // Populate the upload picker from the journal-upload handler (no polling).
+      fetch('/api/plugins/vibe_trading/journal_upload', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': self.csrf() },
+        body: JSON.stringify({ action: 'list' }),
+      }).then(function(r){ return r.json(); }).then(function(j) {
+        if (j && j.success && Array.isArray(j.files)) self.uploads = j.files;
+        else if (j && Array.isArray(j.uploads)) self.uploads = j.uploads;
+      }).catch(function(){ /* picker stays hidden */ });
+    },
+    pickUpload: function(path) {
+      if (path) this.journalPath = path;
+    },
+    viewReport: function() {
+      var self = this;
+      if (!this.reportPath) return;
+      this.reportLoading = 1;
+      this.reportHtml = 'loading';
+      fetch('/api/plugins/vibe_trading/shadow', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': self.csrf() },
+        body: JSON.stringify({ action: 'report_html', path: this.reportPath }),
+      }).then(function(r){ return r.json(); }).then(function(j) {
+        self.reportLoading = 0;
+        if (j && j.success && j.html) { self.reportHtml = j.html; }
+        else { self.reportHtml = null; self.statusMessage = 'Report fetch failed: ' + ((j && j.error) || 'unknown'); }
+      }).catch(function(e) {
+        self.reportLoading = 0; self.reportHtml = null;
+        self.statusMessage = 'Report fetch failed: ' + (e && e.message);
+      });
+    },
     runLoop: function() {
       var self = this;
       if (!this.journalPath) { this.statusMessage = 'enter a journal path'; return; }
       var markets = this.marketsText.split(',').map(function(s){ return s.trim(); }).filter(Boolean);
       this.loading = 1; this.steps = []; this.report = null; this.summary = '';
+      this.reportPath = ''; this.reportHtml = null;
       this.callApi({
         journal_path: this.journalPath,
         min_support: this.minSupport,
@@ -108,6 +166,7 @@ function shadowPage() {
         }
         self.steps = res.steps || [];
         self.summary = res.summary || '';
+        self.reportPath = res.report_path || '';
         self.report = res;
         self.loading = 0;
       }).catch(function(e) {
