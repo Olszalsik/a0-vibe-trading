@@ -3,6 +3,14 @@
 Started 2026-09-01. Goal: complete ALL items. Order below is execution order —
 work them one at a time, verify + commit + push each before starting the next.
 
+**STATUS: ALL 5 ITEMS COMPLETE (2026-09-01).** Commits: 1→e8d703e, 2→0378b97,
+3→9e19fc6, 4→93bfdb4 (pivoted to the backtest flow — upstream
+`pattern_recognition(run_dir)` reads `run_dir/artifacts/ohlcv_*.csv`, not a
+symbol; Deep Dive got a pointer card instead), 5→f019e2b. Item 5 fallout:
+the upgrade pulled langchain 1.3.18 which broke framework imports — fixed in
+the parent repo (01be5461 helpers/, 75b21eeb plugins/_memory +
+_document_query) and `langchain-classic` installed in both container venvs.
+
 Ground rules (from AGENTS.md): handlers NEVER import plugin-local modules via
 `from helpers import ...` (framework shadows `helpers`); use plugin-root
 top-level modules (`import vibe_trading_cache as _cache` after
