@@ -29,7 +29,7 @@ function vibeTradingDashboard() {
     ],
     sourceOptions: ['auto', 'yfinance', 'okx', 'tushare', 'akshare', 'baostock', 'ccxt'],
 
-    versionLabel: 'v0.1.10', // follows the installed upstream vibe-trading-ai via version_sync auto-sync (AGENTS.md invariant 13)
+    versionLabel: 'v0.1.14', // follows the installed upstream vibe-trading-ai via version_sync auto-sync (AGENTS.md invariant 13)
     overview: {},
 
     markets: {

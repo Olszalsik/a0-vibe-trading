@@ -3,7 +3,7 @@ import os
 import logging
 
 log = logging.getLogger(__name__)
-FALLBACK = '0.1.10'
+FALLBACK = '0.1.14'
 
 
 def _plugin_root():

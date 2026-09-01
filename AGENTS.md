@@ -12,7 +12,7 @@ clicked, or the agent falling back to default profiles because the plugin's agen
 discovered. Follow these rules.
 
 ## What this plugin is
-A self-contained A0 plugin (id `vibe_trading`, version `0.1.10` — follows the
+A self-contained A0 plugin (id `vibe_trading`, version `0.1.14` — follows the
 installed upstream `vibe-trading-ai` via `version_sync` auto-sync, invariant 13):
 
 - An MCP server registration — on `install()` the plugin writes a single
@@ -119,7 +119,7 @@ installed upstream `vibe-trading-ai` via `version_sync` auto-sync, invariant 13)
     files in lockstep.** `plugin.yaml:version` is auto-synced to the installed upstream package
     by `version_sync.sync_plugin_version()` (runs via `hooks.py` post-install / pre_update).
     `version_sync.py:FALLBACK` and `execute.py:EXPECTED_VERSION` must be bumped by hand to the
-    same value whenever the upstream package version changes (currently `0.1.10`). The banner's
+    same value whenever the upstream package version changes (currently `0.1.14`). The banner's
     `meta` dict derives from `plugin.yaml` (`hooks.py:PLUGIN_VERSION`). WebUI labels
     (`dashboard.js versionLabel`, `page.html` h1 tag) are hardcoded — bump them in the same
     commit. `execute.py` prints a WARN if `plugin.yaml` disagrees with `EXPECTED_VERSION`.
