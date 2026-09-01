@@ -46,6 +46,40 @@
       </div>
     </template>
   </div>
+  <div class="vt-card">
+    <header class="vt-zoo-header">
+      <h3>Runs</h3>
+      <span>
+        <button class="vt-btn vt-btn-ghost vt-btn-small" @click="loadRuns()" :disabled="runsLoading">&circ; Refresh</button>
+        <button class="vt-btn vt-btn-ghost vt-btn-small" @click="reapStale()" :disabled="runsWorking" title="Cancel runs whose workers are gone">Reap stale</button>
+      </span>
+    </header>
+    <p class="vt-meta" x-show="runs.error"><span class="vt-warn" x-text="runs.error"></span></p>
+    <p class="vt-meta" x-show="!runsLoading && !runs.length">No swarm runs recorded yet — start one from a preset above.</p>
+    <table class="vt-table" x-show="runs.length" style="width: 100%;">
+      <thead>
+        <tr><th>Run</th><th>Preset</th><th>State</th><th>Started</th><th></th></tr>
+      </thead>
+      <tbody>
+        <template x-for="run in runs" :key="runIdOf(run)">
+          <tr>
+            <td><code x-text="runIdOf(run).slice(0, 12)"></code></td>
+            <td x-text="runField(run, ['preset_name', 'preset', 'name'], '—')"></td>
+            <td><span class="vt-pill" x-text="runStateOf(run)"></span></td>
+            <td x-text="runField(run, ['started_at', 'started', 'created_at', 'created'], '—')"></td>
+            <td style="white-space: nowrap;">
+              <button class="vt-btn vt-btn-ghost vt-btn-small" @click="inspectRun(run)" :disabled="detail.loading === runIdOf(run)">Status</button>
+              <button class="vt-btn vt-btn-ghost vt-btn-small" x-show="isRetryable(run)" @click="retryRun(run)">Retry</button>
+            </td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+    <div class="vt-result" x-show="detail.runId">
+      <h4>Run detail: <code x-text="detail.runId"></code></h4>
+      <pre x-text="detail.body"></pre>
+    </div>
+  </div>
   <div class="vt-card" x-show="selected">
     <h3>Start run: <span x-text="selected && selected.name"></span></h3>
     <p class="vt-meta">Provide each required variable as a key-value pair.</p>
@@ -78,7 +112,29 @@ function swarmsPage() {
     variables: {},
     statusMessage: '',
     runResult: null,
+    runs: [],
+    runsLoading: 0,
+    runsWorking: 0,
+    runsError: '',
+    detail: { runId: '', body: '', loading: '' },
     start: { waitSeconds: 60, only: 0, loading: 0 },
+    // --- run-manager helpers (upstream run shape varies; probe defensively)
+    runIdOf: function(run) { return String((run && (run.run_id || run.id || run.name)) || '?'); },
+    runField: function(run, keys, fb) {
+      for (var i = 0; i < keys.length; i++) {
+        var v = run && run[keys[i]];
+        if (v !== undefined && v !== null && v !== '') return String(v);
+      }
+      return fb;
+    },
+    runStateOf: function(run) {
+      var s = this.runField(run, ['state', 'status', 'state_text'], 'unknown').toLowerCase();
+      if (s === 'ok' || s === 'done' || s === 'completed' || s === 'success') return 'done';
+      if (s.indexOf('fail') !== -1 || s.indexOf('error') !== -1 || s.indexOf('cancel') !== -1) return 'failed';
+      if (s.indexOf('run') !== -1 || s.indexOf('progress') !== -1 || s.indexOf('pend') !== -1) return 'running';
+      return s || 'unknown';
+    },
+    isRetryable: function(run) { return this.runStateOf(run) === 'failed'; },
     csrf: function() { return ((document.querySelector('meta[name=csrf-token]') || {}).content || ''); },
     callApi: function(action, payload) {
       var self = this;
@@ -98,6 +154,7 @@ function swarmsPage() {
           self.statusMessage = 'Failed to load presets: ' + ((res && res.error) || 'unknown');
         }
       });
+      this.loadRuns();
     },
     selectPreset: function(preset) {
       this.selected = preset;
@@ -127,6 +184,59 @@ function swarmsPage() {
       this.callApi('get_run', { run_id: runId }).then(function(res) {
         if (res && res.success) { self.runResult = res.data || res; }
         else { self.statusMessage = 'Refresh failed: ' + ((res && res.error) || 'unknown'); }
+      });
+    },
+    loadRuns: function() {
+      var self = this;
+      this.runsLoading = 1;
+      this.runsError = '';
+      this.callApi('list_runs', { limit: 25 }).then(function(res) {
+        self.runsLoading = 0;
+        if (!res || !res.success) {
+          self.runsError = 'Runs unavailable: ' + ((res && res.error) || 'unknown') + ' (needs the swarm run-history tools on the live MCP server)';
+          return;
+        }
+        var d = res.data;
+        var arr = Array.isArray(d) ? d : ((d && (d.runs || d.items || d.results)) || []);
+        self.runs = arr;
+        self.runsError = '';
+      });
+    },
+    inspectRun: function(run) {
+      var self = this;
+      var rid = this.runIdOf(run);
+      this.detail.runId = rid;
+      this.detail.body = 'loading...';
+      this.callApi('get_status', { run_id: rid }).then(function(res) {
+        if (res && res.success) {
+          self.detail.body = JSON.stringify(res.data || res.raw || res, null, 2);
+          self.loadRuns();
+        } else {
+          self.detail.body = 'status failed: ' + ((res && res.error) || 'unknown');
+        }
+      });
+    },
+    retryRun: function(run) {
+      var self = this;
+      var rid = this.runIdOf(run);
+      this.runsWorking = 1;
+      this.callApi('retry_run', { run_id: rid }).then(function(res) {
+        self.runsWorking = 0;
+        if (res && res.success) {
+          self.statusMessage = 'Retry started for ' + rid.slice(0, 12);
+          self.loadRuns();
+        } else {
+          self.statusMessage = 'Retry failed: ' + ((res && res.error) || 'unknown');
+        }
+      });
+    },
+    reapStale: function() {
+      var self = this;
+      this.runsWorking = 1;
+      this.callApi('reap_stale_runs', {}).then(function(res) {
+        self.runsWorking = 0;
+        if (res && res.success) { self.statusMessage = 'Stale runs reaped'; self.loadRuns(); }
+        else { self.statusMessage = 'Reap failed: ' + ((res && res.error) || 'unknown'); }
       });
     }
   };
