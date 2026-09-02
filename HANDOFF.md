@@ -71,7 +71,7 @@ Three access methods. Pick whichever fits the moment.
 
 ### Method 1 — Chat with the `vibe-trader` agent
 
-Select the `vibe-trader` profile from the **Agent profile** dropdown in any chat. The agent already has the full Vibe-Trading research playbook baked in — including the Shadow Account loop, the 29 swarm presets, the 452 alpha formulas, and the read-only safety guardrails.
+Select the `vibe-trader` profile from the **Agent profile** dropdown in any chat. The agent already has the full Vibe-Trading research playbook baked in — including the Shadow Account loop, the 30 swarm presets, the 452 alpha formulas, and the read-only safety guardrails.
 
 Example prompts:
 
@@ -95,7 +95,7 @@ The dashboard has 8 tabs:
 | **Backtest** | Run a backtest via `run_dir` |
 | **Shadow** | 5-step Shadow Account loop — analyse journal, extract rules, backtest, render report, scan signals |
 | **Alphas** | Browse 452 alphas (qlib158, alpha101, gtja191, academic), benchmark a sample set |
-| **Swarm** | List 29 multi-agent team presets, start a run, poll status |
+| **Swarm** | List 30 multi-agent team presets, start a run, poll status |
 | **Connectors** | Read-only views into opt-in broker connectors (IBKR / Futu / Robinhood / Trading 212) |
 | **Settings** | UI preferences, keyboard shortcut help, plugin settings link |
 
@@ -113,7 +113,7 @@ curl -X POST http://localhost:50001/api/plugins/vibe_trading/dashboard \
   -H 'Content-Type: application/json' \
   -d '{"action": "quote", "ticker": "AAPL.US", "source": "yfinance"}'
 
-# List 79 finance skills
+# List 88 finance skills
 curl -X POST http://localhost:50001/api/plugins/vibe_trading/skills \
   -H 'Content-Type: application/json' -d '{"action": "list"}'
 
@@ -121,7 +121,7 @@ curl -X POST http://localhost:50001/api/plugins/vibe_trading/skills \
 curl -X POST http://localhost:50001/api/plugins/vibe_trading/deep_dive \
   -H 'Content-Type: application/json' -d '{"symbol": "600519.SH"}'
 
-# List 29 swarm presets
+# List 30 swarm presets
 curl -X POST http://localhost:50001/api/plugins/vibe_trading/swarms \
   -H 'Content-Type: application/json' -d '{"action": "list_presets"}'
 ```

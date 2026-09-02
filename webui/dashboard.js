@@ -37,7 +37,8 @@ function vibeTradingDashboard() {
       source: 'auto',
       loading: 0,
       error: '',
-      quotes: []
+      quotes: [],
+      unresolved: []
     },
 
     backtest: {
@@ -124,6 +125,7 @@ function vibeTradingDashboard() {
       }
       this.markets.loading = true;
       this.markets.error = '';
+      this.markets.unresolved = [];
       try {
         const res = await this.callApi('quote', { codes: raw, source: this.markets.source });
         if (!res || !res.success) {
@@ -132,6 +134,11 @@ function vibeTradingDashboard() {
           return;
         }
         const payload = res.data || res.raw;
+        // upstream 0.1.14 auto-router can return { _unresolved: [codes] } when
+        // its preferred no-key sources cannot resolve a symbol (US tickers)
+        if (payload && Array.isArray(payload._unresolved)) {
+          this.markets.unresolved = payload._unresolved;
+        }
         this.markets.quotes = this.normaliseQuotes(payload);
       } finally {
         this.markets.loading = 0;
@@ -202,10 +209,14 @@ function vibeTradingDashboard() {
       if (Array.isArray(payload)) bars = payload;
       else if (payload && Array.isArray(payload.bars)) bars = payload.bars;
       else if (payload && typeof payload === 'object') {
-        // { SYMBOL: [ {date,close}, ... ] }
+        // { SYMBOL: [ {date,close}, ... ] } — skip the _unresolved marker key
+        // (an array too; mapping it would render a bogus quote card)
         for (const k of Object.keys(payload)) {
+          if (k === '_unresolved') continue;
           if (Array.isArray(payload[k])) {
-            return Object.keys(payload).map(code => this.summariseSeries(code, payload[code]));
+            return Object.keys(payload)
+              .filter(code => code !== '_unresolved')
+              .map(code => this.summariseSeries(code, payload[code]));
           }
         }
       }

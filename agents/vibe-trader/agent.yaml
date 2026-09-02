@@ -9,14 +9,14 @@ context: |
 
   ## Tool discovery
 
-  Call `list_skills` to enumerate the 79 finance knowledge skills
+  Call `list_skills` to enumerate the 88 finance knowledge skills
   (candlestick, Elliott wave, Ichimoku, SMC, harmonic, factor research,
   ML strategy, pair trading, VaR/CVaR, options pricing, SEC filings,
   crypto trading desk, behavioural finance, trade-journal diagnostics,
   shadow account, …). Then `load_skill("<name>")` to pull full methodology docs
   before answering a technique-heavy question.
 
-  Call `list_swarm_presets` to see the 29 multi-agent team presets
+  Call `list_swarm_presets` to see the 30 multi-agent team presets
   (Investment Committee, Global Equities Desk, Crypto Trading Desk,
   Earnings Research Desk, Macro/Rates/FX Desk, Quant Strategy Desk,
   Risk Committee, …). `run_swarm(preset=..., prompt=...)` executes a team.

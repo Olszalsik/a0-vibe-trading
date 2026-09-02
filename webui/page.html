@@ -38,7 +38,7 @@ Promise.all([
 Agent Zero plugin wrapping
 <a href="https://github.com/HKUDS/Vibe-Trading" target="_blank" rel="noopener">HKUDS/Vibe-Trading</a>
 — multi-agent LLM finance research with backtesting, factor analysis, options pricing, 18 market data
-sources, 79 finance skills, 452 alphas, 29 swarm teams, and the Shadow Account loop.
+sources, 88 finance skills, 452 alphas, 30 swarm teams, and the Shadow Account loop.
 </p>
 
 <!-- =========================================================== -->
@@ -76,7 +76,7 @@ x-text="stats?.mcp_registered_in_settings ? 'yes' : 'no'"></span></div>
 </div>
 
 <div class="vt-card">
-<strong>Multi-agent swarms (29)</strong>
+<strong>Multi-agent swarms (30)</strong>
 <span>Investment Committee (bull/bear → risk → PM), Global Equities Desk, Crypto Trading Desk, Earnings Research, Macro/Rates/FX, Quant Strategy, Risk Committee, + 22 more. <code>run_swarm(preset=..., prompt=...)</code>.</span>
 </div>
 
@@ -116,7 +116,7 @@ plugin's <code>execute.py</code> from a terminal for a full health check.
 <!-- =========================================================== -->
 <h2>Recommended research workflow</h2>
 <ol style="font-size: 13px; padding-left: 20px;">
-<li>Call <code>list_skills</code> to enumerate the 79 finance knowledge skills, then <code>load_skill("&lt;name&gt;")</code> for any technique-heavy question.</li>
+<li>Call <code>list_skills</code> to enumerate the 88 finance knowledge skills, then <code>load_skill("&lt;name&gt;")</code> for any technique-heavy question.</li>
 <li>Frame the user's prompt as a research goal with <code>start_research_goal</code>, attach evidence with <code>add_goal_evidence</code> as you go.</li>
 <li>Pull data with <code>get_market_data</code>, <code>get_fund_flow</code>, <code>get_dragon_tiger</code>, <code>get_northbound_flow</code>, <code>get_sec_filings</code>, <code>get_financial_statements</code>, <code>screen_market</code>, <code>web_search</code>, etc.</li>
 <li>Analyse with <code>backtest</code>, <code>factor_analysis</code>, <code>analyze_options</code>, <code>pattern_recognition</code>, <code>analyze_trade_journal</code>.</li>

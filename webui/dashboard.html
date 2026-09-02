@@ -156,6 +156,14 @@
 
       <div x-show="markets.error" class="vt-error" x-text="markets.error"></div>
 
+      <div class="vt-card vt-warn-hint" x-show="markets.unresolved && markets.unresolved.length" style="border-color: rgba(255,184,77,0.4); margin-top: 10px;">
+        <span class="vt-warn">No data resolved for</span>
+        <code x-text="(markets.unresolved || []).join(', ')"></code>
+        <span class="vt-meta">— the upstream auto-source router often cannot resolve US tickers
+        (its no-key sources are China/crypto-first). Pick an explicit source such as
+        <strong>yfinance</strong> and try again.</span>
+      </div>
+
       <div class="vt-quote-grid" x-show="markets.quotes && markets.quotes.length">
         <template x-for="row in markets.quotes" :key="row.code">
           <div class="vt-quote-card">
@@ -247,7 +255,7 @@
   <section class="vt-pane" x-show="activeTab === 'swarm'" x-transition>
     <div class="vt-card">
       <h3>Swarm presets</h3>
-      <p class="vt-meta">29 multi-agent teams (investment committee, quant desk, risk committee, ...).</p>
+      <p class="vt-meta">30 multi-agent teams (investment committee, quant desk, risk committee, ...).</p>
       <p class="vt-meta">Full page: <a href="/usr/plugins/vibe_trading/webui/swarms.html" target="_blank" rel="noopener">Swarms &rarr;</a></p>
     </div>
   </section>

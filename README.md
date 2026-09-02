@@ -17,7 +17,7 @@ Brings the [HKUDS/Vibe-Trading](https://github.com/HKUDS/Vibe-Trading) finance-r
 |---|---|---|
 | **Backtest** (7 engines) | `backtest` | ChinaA · GlobalEquity · Crypto · ChinaFutures · GlobalFutures · Forex + options portfolio |
 | **Factor / Alpha** | `factor_analysis` + 452 alphas | qlib158, alpha101, gtja191, academic — IC/IR/alive-reversed-dead one-line CLI bench |
-| **Multi-agent swarms** (29) | `list_swarm_presets`, `run_swarm`, `get_swarm_status`, `get_run_result` | Investment Committee, Global Equities Desk, Crypto Trading Desk, Earnings Research, Macro/Rates/FX, Quant Strategy, Risk Committee |
+| **Multi-agent swarms** (30) | `list_swarm_presets`, `run_swarm`, `get_swarm_status`, `get_run_result` | Investment Committee, Global Equities Desk, Crypto Trading Desk, Earnings Research, Macro/Rates/FX, Quant Strategy, Risk Committee |
 | **Market data** (18 sources) | `get_market_data` + 10 read-only tool family | yfinance, stooq, yahoo, OKX, akshare, baostock, tencent, sina, eastmoney, mootdx, futu, tushare, finnhub, alphavantage, tiingo, fmp, local CSV/Parquet/DuckDB |
 | **Fundamentals & flow** | `get_fund_flow`, `get_dragon_tiger`, `get_northbound_flow`, `get_margin_trading`, `get_block_trades`, `get_sec_filings`, `get_financial_statements`, `get_stock_profile`, `get_options_chain`, `get_stock_news` | A-share + US + HK + crypto |
 | **Options & patterns** | `analyze_options`, `get_options_chain`, `pattern_recognition` | Black-Scholes + Greeks, H&S / double-top / triangle / flag |
@@ -47,7 +47,7 @@ The plugin ships **3 ways** to interact with the upstream research workspace. Pi
 
 ### 1. Chat with the `vibe-trader` agent (quickest)
 
-Select the `vibe-trader` profile from the **Agent profile** dropdown in any chat. The agent already has the full Vibe-Trading research playbook baked in — including the Shadow Account loop, the 29 swarm presets, the 452 alpha formulas, and the read-only safety guardrails.
+Select the `vibe-trader` profile from the **Agent profile** dropdown in any chat. The agent already has the full Vibe-Trading research playbook baked in — including the Shadow Account loop, the 30 swarm presets, the 452 alpha formulas, and the read-only safety guardrails.
 
 Just ask, for example:
 
@@ -76,7 +76,7 @@ config page links every page). Eight tabs:
 | **Backtest** | Run a backtest via `run_dir` (the upstream-configured backtest directory) | Re-running existing configs |
 | **Shadow** | 5-step Shadow Account loop — analyse journal, extract rules, backtest, render report, scan signals | Trading behaviour diagnostics |
 | **Alphas** | Browse 452 alphas (qlib158, alpha101, gtja191, academic), benchmark a sample set | Factor library exploration |
-| **Swarm** | List 29 multi-agent team presets, start a run, poll status | Investment committee / quant desk workflows |
+| **Swarm** | List 30 multi-agent team presets, start a run, poll status | Investment committee / quant desk workflows |
 | **Connectors** | Read-only views into opt-in broker connectors (IBKR / Futu / Robinhood / Trading 212) | "What's my account look like?" |
 | **Settings** | UI preferences, keyboard shortcut help, plugin settings link | Theme + shortcut reference |
 
@@ -125,7 +125,7 @@ curl -X POST http://localhost:50001/api/plugins/vibe_trading/skills \
 curl -X POST http://localhost:50001/api/plugins/vibe_trading/deep_dive \
   -H 'Content-Type: application/json' -d '{"symbol": "600519.SH"}'
 
-# List 29 swarm presets
+# List 30 swarm presets
 curl -X POST http://localhost:50001/api/plugins/vibe_trading/swarms \
   -H 'Content-Type: application/json' -d '{"action": "list_presets"}'
 
