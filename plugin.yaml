@@ -5,7 +5,7 @@ description: Brings HKUDS/Vibe-Trading finance research tooling into Agent Zero 
   tools at v0.1.14 — backtest, factor analysis, options, market data, valuation, governance;
   88 finance skills, 452 alphas), market-watch alerts, a portfolio roll-up and a dedicated
   vibe-trader agent profile. Live order placement is opt-in and gated.
-version: 0.1.10
+version: 0.1.14
 settings_sections:
 - external
 - mcp
