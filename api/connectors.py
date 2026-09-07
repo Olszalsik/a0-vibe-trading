@@ -27,7 +27,7 @@ import json
 import os
 import shutil
 import sys
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from helpers.api import ApiHandler  # type: ignore
 
