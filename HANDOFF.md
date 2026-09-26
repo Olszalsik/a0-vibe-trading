@@ -2,7 +2,7 @@
 
 This document is the end-user manual for the Vibe-Trading Agent Zero plugin. It covers quick-start, usage patterns, keyboard shortcuts, settings, troubleshooting, and safety.
 
-**Plugin version:** 0.1.15 (Tier 4 complete; version follows the upstream `vibe-trading-ai` package via hooks auto-sync — the five static version sites stay in lockstep, enforced by `scripts/check_v22_contract.py`). See `README.md` for the capability matrix, install instructions, and file index.
+**Plugin version:** 0.1.15, installed from a **pinned** upstream commit `b4569ff` (2026-09-26) rather than a release tag — upstream had not cut 0.1.16 at the time of writing. The five static version sites stay in lockstep, enforced by `scripts/check_v22_contract.py`; `version_sync` still tracks the installed package (which reports 0.1.15, since upstream bumps its version only at release). See `README.md` for the capability matrix, install instructions, and file index.
 
 ## Table of contents
 

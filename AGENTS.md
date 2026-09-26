@@ -361,6 +361,20 @@ the tool call.** Every `session.initialize()` uses
 bounded tool call complete. Do not set an outer timeout independently below
 that combined budget.
 
+**Invariant 21 — keep `known_order_markets` in sync with upstream's loader
+registry.** The per-market source-priority field maps market ->
+`MARKET_DATA_ORDER_<MARKET>`, and the whitelist **drops unknown markets by
+design**. That is safe against injection but means a market upstream added
+later is a *silent* no-op: the user sets an override, the server never sees
+it. Two were lost this way — `UK_EQUITY` (upstream 2026-09-09, missed by the
+Tier 4 sweep) and `AR_EQUITY` (upstream 2026-09-26, BYMA `.BA`). The list now
+matches upstream's 15 keys, and
+`test_market_order_whitelist_matches_upstream` pins the exact set so a future
+upstream market fails the build instead of silently doing nothing. When
+bumping, read the keys from the **installed** package
+(`<site-packages>/backtest/loaders/registry.py`), not the git checkout — the
+installed layout is `backtest/`, not `vibe_trading_ai/`.
+
 ## Shipped-file manifest lives in hooks.py (2026-09-26)
 
 `execute.py` and `hooks.self_check()` used to carry independent

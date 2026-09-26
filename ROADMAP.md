@@ -77,6 +77,48 @@ lands — the lockstep check now fails loudly if the five static sites and
    order-migration hint to `config.html`, Robinhood in broker docs,
    portfolio-v3 history note on `portfolio.html`, Alpha Zoo caveat refresh.)
 
+## Tier 8 — main-branch refresh to b4569ff + market whitelist repair (2026-09-26)
+
+**STATUS: COMPLETE (2026-09-26).** Follow-on to Tier 7. Upstream still has no
+0.1.16 tag (PyPI + GitHub verified), so the pinned-main approach from Tier 6
+was re-run against the current tip: `a4821b1` (2026-09-22) → `b4569ff`
+(2026-09-26), **110 commits**.
+
+1. **Pre-flight proven safe, not assumed.** A `pip install --dry-run --report`
+   (full dependency resolution, both venvs) reported **zero** new packages, and
+   `pyproject.toml` / requirements / lock files are **untouched** upstream —
+   so there is no dependency churn and the five static sites correctly stay at
+   0.1.15 (upstream bumps its version only at release time).
+2. **Installed in BOTH venvs** (two-venv rule) at the pinned sha
+   `b4569ffbef9d11665130d8831e582584ae4d4f97`, verified via `direct_url.json`.
+   `fastmcp`/`mcp`/`langchain`/`numpy`/`pandas` import cleanly on 3.12 and 3.13.
+3. A0 restarted (`supervisorctl restart run_ui`). Post-restart verification in
+   the documented order: registered `command` = `/opt/venv/bin/vibe-trading-mcp`
+   (absolute), `plugin.yaml` = 0.1.15, `verify-resolver` all-green, **74 tools
+   live**, and all 13 tools the handlers call confirmed present.
+   `init_timeout: 30` / `tool_timeout: 300` / `disabled: false` intact.
+4. **P1 — the `MARKET_DATA_ORDER_*` whitelist was missing two markets.**
+   Upstream's loader registry now declares 15; the plugin allowed 13, so a
+   user's source-priority override for those markets was **silently dropped**
+   (the whitelist drops unknown keys by design):
+   - `UK_EQUITY` — added upstream 2026-09-09, **missed by the Tier 4 sweep**
+     (a pre-existing bug, not caused by this refresh);
+   - `AR_EQUITY` — added upstream 2026-09-26 (BYMA `.BA`, Yahoo then yfinance).
+   Whitelist, `default_config.yaml` and the Settings-UI hint now list all 15.
+5. **Tests 43 → 46:** the whitelist now pins the exact upstream set
+   (`test_market_order_whitelist_matches_upstream`), a UK/AR override is
+   asserted to actually emit its env var, and unknown markets are still
+   rejected. Verified against the **installed** registry in both venvs
+   (`backtest/loaders/registry.py`), not just the git checkout.
+6. Docs: settings UI + `default_config.yaml` market lists refreshed; this
+   entry. The version labels deliberately stay at 0.1.15 — the package still
+   reports 0.1.15 and `scripts/check_v22_contract.py` enforces lockstep.
+
+**Next upgrade trigger:** upstream ships a 0.1.16 tag. Until then the lockstep
+check is the tripwire — a real release bumps `pyproject.toml`, `version_sync`
+rewrites `plugin.yaml`, and `check_v22_contract.py` fails loudly until the
+five static sites are bumped with it.
+
 ## Tier 7 — two-venv closure + health-manifest hardening (2026-09-26)
 
 **STATUS: COMPLETE (2026-09-26).** Audit-driven, not driven by an upstream
@@ -134,32 +176,6 @@ Instead this tier closed the *half-finished* part of the 2026-09-22 incident.
    coverage, and handler call budgets. The bare-which guard was verified to
    fail when a regression is reintroduced (it caught three missed sites).
 
-## Tier 8 — market override whitelist sync (2026-09-26)
-
-**STATUS: COMPLETE.** A review of `agent/backtest/loaders/registry.py` found
-that upstream had added `UK_EQUITY` and `AR_EQUITY`, while the plugin still
-filtered them out of `MARKET_DATA_ORDER_*`. Users could save these priorities
-in Settings without an error, but hooks silently discarded them.
-
-1. Added both markets to the hook whitelist and the matching defaults/UI help.
-2. Added regression checks for exact upstream whitelist parity, env emission
-   for the new markets, and rejection of unknown market names.
-3. Focused suite now contains 46 tests; see README for the command.
-
-## Remaining roadmap
-
-The previously listed Swarm Run Manager (#7), Shadow Account pipeline (#8),
-Research Goals board (#9), and Deep Dive pattern recognition (#10) are
-implemented in their API and WebUI surfaces. The only release-dependent item
-is the upstream package upgrade playbook: when `vibe-trading-ai` publishes a
-new release, upgrade both Agent Zero venvs, verify the registered MCP binary,
-then update the five version-lockstep sites and release-specific settings and
-page notes. Do not bump plugin version labels ahead of that upstream release.
-
-**Next item:** watch for the next upstream `vibe-trading-ai` release and run
-the two-venv upgrade/verification playbook. No other plugin-only roadmap item
-is currently open.
-
 ## Tier 6 — main-branch pre-ship (2026-09-22)
 
 **STATUS: COMPLETE (2026-09-22).** 0.1.16 was NOT released upstream — PyPI and
@@ -206,7 +222,7 @@ the manifest version, not just the tool count (execute.py probes the
 `shutil.which` binary, which in a bare exec shell is /opt/venv and may
 differ from the app's choice — this is exactly what bit us).
 
-## 1. Swarm Run Manager — runs history / status / retry  [task #7]
+## 1. Swarm Run Manager — runs history / status / retry  [task #7 — COMPLETE]
 
 Upstream tools (all present at 0.1.10): `list_runs`, `get_swarm_status`,
 `get_run_result`, `reap_stale_runs`, `retry_run`, `list_swarm_presets`.
@@ -219,7 +235,7 @@ Upstream tools (all present at 0.1.10): `list_runs`, `get_swarm_status`,
   "Reap stale" button. Poll status only on demand (no background polling —
   memory: usr plugin polling cadence).
 
-## 2. Shadow Account pipeline page  [task #8]
+## 2. Shadow Account pipeline page  [task #8 — COMPLETE]
 
 Upstream tools (present at 0.1.10): `extract_shadow_strategy`,
 `run_shadow_backtest`, `render_shadow_report`, `scan_shadow_signals`.
@@ -234,7 +250,7 @@ Upstream tools (present at 0.1.10): `extract_shadow_strategy`,
   4. Scan today's signals → matching symbols list
   Each step shows live status; steps 2-3 enabled after 1 succeeds.
 
-## 3. Research Goals board  [task #9]
+## 3. Research Goals board  [task #9 — COMPLETE]
 
 Upstream tools (present at 0.1.10): `start_research_goal`,
 `get_research_goal`, `add_goal_evidence`, `update_research_goal_status`.
@@ -246,7 +262,7 @@ Upstream tools (present at 0.1.10): `start_research_goal`,
   form, evidence composer, status transition buttons. Link from
   `dashboard.html` settings tab, `page.html`, `HANDOFF.md`.
 
-## 4. Pattern recognition in Deep Dive  [task #10]
+## 4. Pattern recognition in Deep Dive  [task #10 — COMPLETE]
 
 Upstream tool `pattern_recognition` (present at 0.1.10): chart patterns
 (head-and-shoulders, double top/bottom, triangles, wedges, channels).
@@ -257,7 +273,7 @@ Upstream tool `pattern_recognition` (present at 0.1.10): chart patterns
 - `webui/deepdive.html`: "Patterns" card — name, direction (bullish/bearish),
   confidence/status if provided; hidden cleanly when the tool is absent.
 
-## 5. Upgrade vibe-trading-ai in the container  [task #11]
+## 5. Upgrade vibe-trading-ai in the container  [task #11 — RELEASE-DEPENDENT]
 
 `pip install -U vibe-trading-ai` inside the A0 container (0.1.10 → latest,
 expect v0.1.14 / 74 tools), restart A0 so `hooks.py` re-registers and the MCP
