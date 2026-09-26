@@ -287,7 +287,17 @@ See the [Persistence keys](#persistence-keys) table above. Use the Settings → 
 
 ### Plugin shows `Health check PARTIAL — MCP server probe failed: unhandled errors in a TaskGroup`
 
-This is a known stdio-transport flake from `execute.py`'s inline probe. It does not affect runtime — the plugin's own install path still reports `registered: true` and the 54 tools remain reachable through `api/tools.py`. If `tools_count: 54` is missing, restart Agent Zero.
+This is a known stdio-transport flake from `execute.py`'s inline probe. It does not affect runtime — the plugin's own install path still reports `registered: true` and the 74 tools remain reachable through `api/tools.py`. If `tool_count: 74` is missing, restart Agent Zero.
+
+### A WebUI panel says `vibe-trading-mcp not found` but the agent's tools work
+
+The plugin spawns its own short-lived MCP clients for the dashboard / Deep Dive / portfolio panels, separate from the long-lived server A0 registers for the agent. If those probes cannot find the binary while the agent works, the resolver failed — run:
+
+```bash
+cd /a0/usr/plugins/vibe_trading && python execute.py verify-resolver
+```
+
+`ok: true` means the pinned command, the registered server, and every in-plugin probe point at the same file. `probe_matches_registered: false` means the two-venv split is back (see the two-venv section in `AGENTS.md`) — the fix is to re-pin `mcp_command` in `config.json` to an absolute path and restart Agent Zero.
 
 ### `version_sync` keeps rewriting `plugin.yaml`
 

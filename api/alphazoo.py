@@ -45,6 +45,8 @@ import hashlib
 # helpers package shadows the plugin's, and its cache API is (area, key)-shaped
 # with no TTL. This plugin-root module is shadow-proof. See vibe_trading_cache.py.
 import vibe_trading_cache as _cache
+# Two-venv trap: shared canonical binary resolver (plugin root, shadow-proof).
+import vibe_trading_bin as _bin
 
 _BENCH_NS = 'alphazoo.bench'
 _BENCH_TTL_SECONDS = 86400.0  # 24h
@@ -125,7 +127,7 @@ async def _call_tool(cmd: str, name: str, arguments: Dict[str, Any], outer: floa
     async def _run():
         async with stdio_client(params) as (read, write):
             async with ClientSession(read, write) as session:
-                await asyncio.wait_for(session.initialize(), timeout=10)
+                await asyncio.wait_for(session.initialize(), timeout=_bin.MCP_INIT_TIMEOUT_S)
                 res = await asyncio.wait_for(session.call_tool(name, arguments), timeout=inner)
                 texts: List[str] = []
                 for item in (getattr(res, 'content', None) or []):
@@ -143,7 +145,7 @@ async def _call_tool(cmd: str, name: str, arguments: Dict[str, Any], outer: floa
                 return {'ok': True, 'raw': joined[:6000]}
 
     try:
-        return await asyncio.wait_for(_run(), timeout=outer)
+        return await asyncio.wait_for(_run(), timeout=_bin.call_budget(outer, inner))
     except Exception as e:
         return {'ok': False, 'error': str(e)[:300]}
 
@@ -154,9 +156,9 @@ async def _bench(payload: Dict[str, Any]) -> Dict[str, Any]:
     if hit is not None:
         return {'ok': True, 'cached': True, **hit}
 
-    cmd = shutil.which('vibe-trading-mcp')
+    cmd = _bin.resolve_mcp_command()
     if not cmd:
-        return {'ok': False, 'error': 'vibe-trading-mcp not on PATH', 'rows': []}
+        return {'ok': False, 'error': 'vibe-trading-mcp not found; check mcp_command and the plugin install', 'rows': []}
 
     codes = payload.get('codes') or []
     if not codes:

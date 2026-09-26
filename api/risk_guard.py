@@ -41,6 +41,9 @@ PLUGIN_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PLUGIN_ROOT not in sys.path:
     sys.path.insert(0, PLUGIN_ROOT)
 
+# Two-venv trap: shared canonical binary resolver (plugin root, shadow-proof).
+import vibe_trading_bin as _bin
+
 # NOTE: NOT `from helpers import cache` -- inside the A0 server the framework
 # helpers package shadows the plugin's, and its cache API is (area, key)-shaped
 # with no TTL. This plugin-root module is shadow-proof. See vibe_trading_cache.py.
@@ -69,6 +72,14 @@ TIER_BANNER_COLORS = {
 
 
 def _read_plugin_config() -> Dict[str, Any]:
+    # Two-venv-era local loader: read config.json if present, else defaults.
+    # NOTE: the effective merged config (default_config.yaml overlaid by
+    # config.json, same precedence as hooks._merge_configs) is now available
+    # from the shared resolver -- prefer it so the risk tier this handler
+    # enforces can never diverge from the tier the boot hook registered.
+    cfg = _bin.effective_config()
+    if cfg:
+        return cfg
     cfg_path = os.path.join(PLUGIN_ROOT, 'config.json')
     if not os.path.exists(cfg_path):
         cfg_path = os.path.join(PLUGIN_ROOT, 'default_config.yaml')
@@ -134,7 +145,7 @@ async def _call_tool(cmd: str, name: str, arguments: Dict[str, Any], outer: floa
     async def _run():
         async with stdio_client(params) as (read, write):
             async with ClientSession(read, write) as session:
-                await asyncio.wait_for(session.initialize(), timeout=10)
+                await asyncio.wait_for(session.initialize(), timeout=_bin.MCP_INIT_TIMEOUT_S)
                 res = await asyncio.wait_for(session.call_tool(name, arguments), timeout=inner)
                 texts: List[str] = []
                 for item in (getattr(res, 'content', None) or []):
@@ -152,7 +163,7 @@ async def _call_tool(cmd: str, name: str, arguments: Dict[str, Any], outer: floa
                 return {'ok': True, 'raw': joined[:6000]}
 
     try:
-        return await asyncio.wait_for(_run(), timeout=outer)
+        return await asyncio.wait_for(_run(), timeout=_bin.call_budget(outer, inner))
     except asyncio.TimeoutError:
         return {'ok': False, 'error': 'MCP timeout'}
     except Exception as e:
@@ -189,7 +200,9 @@ class RiskGuardHandler(ApiHandler):
         cached = _cache.get(_CONNECTORS_NS)
         if cached is not None and isinstance(cached, dict):
             return {'ok': True, 'connectors': cached, 'cached': True}
-        cmd = shutil.which('vibe-trading-mcp') or 'vibe-trading-mcp'
+        cmd = _bin.resolve_mcp_command()
+        if not cmd:
+            return {'ok': False, 'error': 'vibe-trading-mcp not found; check mcp_command and package installation'}
         res = await _call_tool(cmd, 'trading_connections', {}, outer=15.0, inner=12.0)
         if not res.get('ok'):
             return {'ok': False, 'error': res.get('error', 'mcp failure')}
@@ -205,7 +218,9 @@ class RiskGuardHandler(ApiHandler):
         cached = _cache.get(cache_key)
         if cached is not None and isinstance(cached, dict):
             return {'ok': True, 'result': cached, 'cached': True}
-        cmd = shutil.which('vibe-trading-mcp') or 'vibe-trading-mcp'
+        cmd = _bin.resolve_mcp_command()
+        if not cmd:
+            return {'ok': False, 'error': 'vibe-trading-mcp not found; check mcp_command and package installation'}
         res = await _call_tool(cmd, 'trading_check', {'connection': connection}, outer=15.0, inner=12.0)
         if not res.get('ok'):
             return {'ok': False, 'error': res.get('error', 'mcp failure')}

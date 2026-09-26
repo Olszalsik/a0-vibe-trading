@@ -31,6 +31,9 @@ PLUGIN_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PLUGIN_ROOT not in sys.path:
     sys.path.insert(0, PLUGIN_ROOT)
 
+# Two-venv trap: shared canonical binary resolver (plugin root, shadow-proof).
+import vibe_trading_bin as _bin
+
 
 class Stats(ApiHandler):
     async def process(self, input_data: Dict[str, Any], request) -> Dict[str, Any]:
@@ -56,9 +59,11 @@ class Stats(ApiHandler):
         # boot (they used to race two, each under a 12s timer — see AGENTS.md
         # invariant 7). Raises nothing; the handler returns probed=False +
         # error on probe failure.
-        cmd = shutil.which("vibe-trading-mcp")
+        cmd = _bin.resolve_mcp_command()
         if not cmd:
-            return {"probed": False, "error": "vibe-trading-mcp not on PATH"}
+            return {"probed": False, "error": "vibe-trading-mcp not found (checked the "
+                                              "pinned mcp_command, usr/settings.json, "
+                                              "PATH and the well-known venv bin dirs)"}
         try:
             from api import tools as _api_tools  # type: ignore  # local plugin import
             res = await _api_tools._get_tools(force=False)

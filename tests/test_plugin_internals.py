@@ -399,3 +399,215 @@ def test_default_config_has_gildata_keys():
     cfg = yaml.safe_load((PLUGIN_ROOT / 'default_config.yaml').read_text(encoding='utf-8'))
     assert cfg.get('gildata_token') == ''
     assert cfg.get('gildata_base_url') == ''
+
+
+# ---------------------------------------------------------------------------
+# Two-venv resolver regression (incident 2026-09-22, generalised 2026-09-26)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(scope='module')
+def bin_mod():
+    sys.path.insert(0, str(PLUGIN_ROOT))
+    return _import_module('vibe_trading_bin', PLUGIN_ROOT / 'vibe_trading_bin.py')
+
+
+def _fake_exe(path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text('#!/bin/sh\n', encoding='utf-8')
+    path.chmod(0o755)
+    return path
+
+
+def test_resolver_prefers_configured_absolute_pin(bin_mod, tmp_path, monkeypatch):
+    '''An absolute, existing mcp_command wins over a PATH lookup.
+
+    This is the two-venv trap in miniature: the app process's PATH resolves to
+    a DIFFERENT venv than the one the pin names, and the pin must win.
+    '''
+    pinned = _fake_exe(tmp_path / 'venv' / 'bin' / 'vibe-trading-mcp')
+    shadow = _fake_exe(tmp_path / 'other' / 'bin' / 'vibe-trading-mcp')
+
+    monkeypatch.setattr(bin_mod, '_SETTINGS_PATH', str(tmp_path / 'settings.json'))
+    monkeypatch.setattr(bin_mod, 'VENV_BIN_DIRS', (str(shadow.parent),))
+    monkeypatch.setattr(bin_mod, 'effective_config', lambda: {'mcp_command': str(pinned)})
+    # PATH points at the OTHER venv on purpose.
+    monkeypatch.setattr(bin_mod.shutil, 'which', lambda name: str(shadow) if 'mcp' in name else None)
+
+    assert bin_mod.resolve_mcp_command() == str(pinned)
+
+
+def test_resolver_falls_back_when_pin_does_not_exist(bin_mod, tmp_path, monkeypatch):
+    '''A stale absolute pin (config copied across machines) must not hard-fail.'''
+    good = _fake_exe(tmp_path / 'bin' / 'vibe-trading-mcp')
+
+    monkeypatch.setattr(bin_mod, '_SETTINGS_PATH', str(tmp_path / 'settings.json'))
+    monkeypatch.setattr(bin_mod, 'VENV_BIN_DIRS', (str(good.parent),))
+    monkeypatch.setattr(bin_mod, 'effective_config',
+                        lambda: {'mcp_command': str(tmp_path / 'gone' / 'vibe-trading-mcp')})
+    monkeypatch.setattr(bin_mod.shutil, 'which', lambda name: None)
+
+    assert bin_mod.resolve_mcp_command() == str(good)
+
+
+def test_resolver_consults_registered_settings_entry(bin_mod, tmp_path, monkeypatch):
+    '''With no config pin, the entry hooks.install() registered is honoured.'''
+    reg = _fake_exe(tmp_path / 'registered-mcp')
+    settings = tmp_path / 'settings.json'
+    settings.write_text(json.dumps({
+        'mcp_servers': json.dumps({'mcpServers': {
+            'vibe-trading': {'command': str(reg), 'disabled': False},
+        }}),
+    }), encoding='utf-8')
+
+    monkeypatch.setattr(bin_mod, '_SETTINGS_PATH', str(settings))
+    monkeypatch.setattr(bin_mod, 'VENV_BIN_DIRS', ())
+    monkeypatch.setattr(bin_mod, 'effective_config', lambda: {})
+    monkeypatch.setattr(bin_mod.shutil, 'which', lambda name: None)
+
+    assert bin_mod.registered_mcp_command() == str(reg)
+    assert bin_mod.resolve_mcp_command() == str(reg)
+
+
+def test_cli_resolver_prefers_mcp_sibling_over_path(bin_mod, tmp_path, monkeypatch):
+    '''`vibe-trading portfolio show` must run from the MCP pin's venv.
+
+    Otherwise the CLI reads a different install's state than the MCP tools
+    write -- the portfolio roll-up silently serves foreign data.
+    '''
+    pinned_dir = tmp_path / 'pinned'
+    _fake_exe(pinned_dir / 'vibe-trading-mcp')
+    pinned_cli = _fake_exe(pinned_dir / 'vibe-trading')
+    stray = _fake_exe(tmp_path / 'pathvenv' / 'vibe-trading')
+
+    monkeypatch.setattr(bin_mod, '_SETTINGS_PATH', str(tmp_path / 'settings.json'))
+    monkeypatch.setattr(bin_mod, 'VENV_BIN_DIRS', ())
+    monkeypatch.setattr(bin_mod, 'effective_config',
+                        lambda: {'mcp_command': str(pinned_dir / 'vibe-trading-mcp')})
+    # PATH would find the OTHER venv's CLI.
+    monkeypatch.setattr(bin_mod.shutil, 'which',
+                        lambda name: str(stray) if name == 'vibe-trading' else None)
+
+    assert bin_mod.resolve_cli_command() == str(pinned_cli)
+
+
+def test_resolver_never_returns_a_bare_name(bin_mod, tmp_path, monkeypatch):
+    '''An unresolvable command is None, not a bare name the client can't spawn.'''
+    monkeypatch.setattr(bin_mod, '_SETTINGS_PATH', str(tmp_path / 'settings.json'))
+    monkeypatch.setattr(bin_mod, 'VENV_BIN_DIRS', ())
+    monkeypatch.setattr(bin_mod, 'effective_config', lambda: {})
+    monkeypatch.setattr(bin_mod.shutil, 'which', lambda name: None)
+
+    assert bin_mod.resolve_mcp_command() is None
+    assert bin_mod.resolve_cli_command() is None
+
+
+def test_execute_main_survives_empty_argv(monkeypatch):
+    '''main() must not assume a subcommand is present.
+
+    The Plugins-UI runner imports execute and calls main() with no argv, so
+    `_ARGV` is empty; an unguarded `_ARGV[0]` raised IndexError and turned a
+    passing health check into exit code 1.
+    '''
+    sys.path.insert(0, str(PLUGIN_ROOT))
+    import execute as ex
+    monkeypatch.setattr(ex, '_ARGV', [])
+    monkey = ex._ARGV
+    assert callable(ex.main)
+    assert callable(ex.verify_resolver)
+    # The subcommand guard must be falsy-safe for an empty argv.
+    assert not (ex._ARGV and ex._ARGV[0] == 'verify-resolver')
+
+
+def test_execute_subcommand_dispatch_matches_argv():
+    '''The `verify-resolver` dispatch must be falsy-safe for every argv shape.'''
+    for argv, expected in (([], False), (['health'], False), (['verify-resolver'], True)):
+        is_sub = bool(argv) and argv[0] == 'verify-resolver'
+        assert is_sub is expected, 'argv={0!r} dispatched wrong'.format(argv)
+
+
+def test_effective_config_merges_defaults_then_user_overrides():
+    '''config.json must win over default_config.yaml (hooks._merge_configs parity).'''
+    sys.path.insert(0, str(PLUGIN_ROOT))
+    import vibe_trading_bin as real_bin
+    cfg = real_bin.effective_config()
+    defaults = yaml.safe_load((PLUGIN_ROOT / 'default_config.yaml').read_text(encoding='utf-8'))
+    # A defaults-only key must survive the merge.
+    assert cfg.get('llm_provider') == defaults.get('llm_provider')
+    # A key set by the user override must win over the default.
+    user_cfg = json.loads((PLUGIN_ROOT / 'config.json').read_text(encoding='utf-8'))
+    for key, value in user_cfg.items():
+        assert cfg.get(key) == value, f'config.json {key} did not win over default_config.yaml'
+
+
+def test_handlers_do_not_bare_which_the_mcp_binary():
+    '''No handler or extension may resolve the server via a bare PATH lookup.
+
+    Guards the regression that let the dashboard panels probe a different venv
+    than the one hooks.install() registered.
+    '''
+    targets = sorted((PLUGIN_ROOT / 'api').glob('*.py'))
+    targets += sorted((PLUGIN_ROOT / 'extensions').rglob('*.py'))
+    offenders = []
+    for path in targets:
+        src = path.read_text(encoding='utf-8')
+        for m in re.finditer(r'shutil\.which\(\s*[\'"]vibe-trading', src):
+            line = src[:m.start()].count('\n') + 1
+            offenders.append(f'{path.relative_to(PLUGIN_ROOT)}:{line}')
+    assert not offenders, 'bare shutil.which on the upstream binary: ' + ', '.join(offenders)
+
+
+def test_dashboard_initialize_timeout_beats_cold_start():
+    '''AGENTS.md invariant 1/7: initialize() must allow the 8-25s cold start.'''
+    src = (PLUGIN_ROOT / 'api' / 'dashboard.py').read_text(encoding='utf-8')
+    matches = re.findall(
+        r'session\.initialize\(\),\s*timeout=(?:_bin\.MCP_INIT_TIMEOUT_S|(\d+))', src
+    )
+    assert matches, 'no session.initialize() timeout found in dashboard.py'
+    for value in matches:
+        # A symbolic reference to the shared budget is always >= the ceiling.
+        if value:
+            assert int(value) >= 25, \
+                f'dashboard initialize timeout {value}s is below the cold-start ceiling'
+
+
+def test_shared_call_budget_covers_cold_init_and_tool_timeout(bin_mod):
+    assert bin_mod.MCP_INIT_TIMEOUT_S >= 25
+    for requested, inner in ((15, 12), (20, 15), (30, 25)):
+        total = bin_mod.call_budget(requested, inner)
+        assert total >= bin_mod.MCP_INIT_TIMEOUT_S + inner + 1
+
+    for path in (PLUGIN_ROOT / 'api').glob('*.py'):
+        src = path.read_text(encoding='utf-8')
+        if 'session.initialize()' not in src:
+            continue
+        numeric_init_timeouts = re.findall(
+            r'session\.initialize\(\),\s*timeout=(\d+(?:\.\d+)?)', src
+        )
+        assert all(float(value) >= 25 for value in numeric_init_timeouts), (
+            f'{path.name} has an MCP initialize timeout below 25s: {numeric_init_timeouts}'
+        )
+        if 'timeout=outer)' in src:
+            assert '_bin.call_budget(outer, inner)' in src, \
+                f'{path.name} outer deadline omits MCP startup budget'
+
+
+def test_shipped_file_manifest_covers_every_handler(hooks_mod):
+    '''Every advertised handler must be in the health-check manifest.'''
+    for name in hooks_mod.API_HANDLERS:
+        assert f'api/{name}.py' in hooks_mod.REQUIRED_FILES
+
+
+def test_shipped_file_manifest_is_complete():
+    '''No shipped .py/.html/.js/.css page may be missing from the manifest.'''
+    sys.path.insert(0, str(PLUGIN_ROOT))
+    import hooks as real_hooks
+    status = real_hooks.check_required_files()
+    on_disk = set()
+    for sub in ('api', 'webui'):
+        for p in (PLUGIN_ROOT / sub).iterdir():
+            if p.is_file() and p.suffix in {'.py', '.html', '.js', '.css'}:
+                on_disk.add(f'{sub}/{p.name}')
+    untracked = sorted(on_disk - set(status))
+    assert not untracked, 'shipped files absent from the health manifest: ' + ', '.join(untracked)
+    assert all(status.values()), 'health manifest reports missing files: ' + \
+        ', '.join(sorted(k for k, v in status.items() if not v))

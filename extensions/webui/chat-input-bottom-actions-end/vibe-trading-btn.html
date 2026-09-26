@@ -115,7 +115,7 @@
         { label: "💼 Shadow Account from journal",
           template: "Analyse my trading journal CSV (I will paste / upload it next) with analyze_trade_journal, then extract_shadow_strategy and run_shadow_backtest across A股/港股/美股/crypto. Report the delta-PnL versus my realised trades." },
         { label: "📚 Load a finance skill",
-          template: "Call list_skills to enumerate the 79 Vibe-Trading skills, then load_skill() on the one most relevant to my next question (I will state it below)." },
+          template: "Call list_skills to enumerate the Vibe-Trading skills, then load_skill() on the one most relevant to my next question (I will state it below)." },
         { label: "🌐 Pull cross-market data",
           template: "Use get_market_data to pull daily bars for AAPL, 0700.HK, and BTC/USDT over the last 90 days, then run a side-by-side volatility / correlation table." },
         { label: "🧮 Price an option",
@@ -129,38 +129,39 @@
         this.open = false;
       },
       _insertIntoChatInput(text) {
-        // The chat input is a single <textarea> (or contenteditable) inside the
-        // chat-bar wrapper. We try a few selectors so this works across
-        // v2.0/2.1/2.2 of the Agent Zero WebUI without depending on a private
-        // Alpine store name.
-        const sel = [
-          'textarea[data-chat-input]',
-          '#chat-input textarea',
-          '#chat-bar-input textarea',
-          '.chat-bar-input textarea',
-          '#chat-input',
-          'textarea[placeholder*="message" i]',
-          'textarea[aria-label*="message" i]',
-        ];
-        let el = null;
-        for (const s of sel) {
-          const c = document.querySelector(s);
-          if (c) { el = c; break; }
+        // Agent Zero's current composer is a contenteditable div, not a
+        // textarea. Use its DOM selection API so insertion also works when
+        // the prompt menu has taken focus away from the editor.
+        const editor = document.getElementById('chat-input');
+        if (!editor || !editor.isContentEditable) return;
+
+        const selection = document.getSelection?.();
+        let range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+        if (!range || !editor.contains(range.startContainer) || !editor.contains(range.endContainer)) {
+          range = document.createRange();
+          range.selectNodeContents(editor);
+          range.collapse(false);
         }
-        if (!el) return;
-        el.focus();
-        const start = el.selectionStart ?? el.value.length;
-        const end = el.selectionEnd ?? el.value.length;
-        const before = el.value.slice(0, start);
-        const after = el.value.slice(end);
-        const needsLeadingSpace = before.length > 0 && !before.endsWith(' ') && !before.endsWith('\n');
-        const insert = (needsLeadingSpace ? ' ' : '') + text;
-        el.value = before + insert + after;
-        const caret = (before + insert).length;
-        try { el.setSelectionRange(caret, caret); } catch (_) { /* contenteditable */ }
-        // Trigger Alpine / framework reactivity
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-        el.dispatchEvent(new Event('change', { bubbles: true }));
+
+        const before = range.cloneRange();
+        before.selectNodeContents(editor);
+        before.setEnd(range.startContainer, range.startOffset);
+        const prefix = before.toString();
+        const needsLeadingSpace = prefix.length > 0 && !prefix.endsWith(' ') && !prefix.endsWith('\n');
+        const insertedText = (needsLeadingSpace ? ' ' : '') + text;
+
+        editor.focus();
+        range.deleteContents();
+        const node = document.createTextNode(insertedText);
+        range.insertNode(node);
+        range.setStartAfter(node);
+        range.collapse(true);
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+
+        // This reaches chatInput.handleInput, which updates the draft and
+        // Agent Zero's reactive message state.
+        editor.dispatchEvent(new Event('input', { bubbles: true }));
       },
     };
   };

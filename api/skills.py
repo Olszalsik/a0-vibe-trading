@@ -33,12 +33,17 @@ PLUGIN_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PLUGIN_ROOT not in sys.path:
     sys.path.insert(0, PLUGIN_ROOT)
 
+# Two-venv trap: shared canonical binary resolver (plugin root, shadow-proof).
+# Resolves the SAME absolute binary hooks.install() registers, instead of a
+# bare PATH lookup that picks the app venv. See vibe_trading_bin.py.
+import vibe_trading_bin as _bin
+
 
 _LIST_TTL = 300.0
 _LOAD_TTL = 30.0
-_OUTER_TIMEOUT = 25.0
 _INNER_TIMEOUT = 15.0
-_INIT_TIMEOUT = 10.0
+_INIT_TIMEOUT = _bin.MCP_INIT_TIMEOUT_S
+_OUTER_TIMEOUT = _bin.call_budget(25.0, _INNER_TIMEOUT)
 
 
 _CATEGORY_KEYWORDS = [
@@ -66,7 +71,8 @@ def _categorize(name: str, description: str) -> str:
 
 
 def _mcp_cmd() -> Optional[str]:
-    return shutil.which('vibe-trading-mcp')
+    # Two-venv trap: honour the pinned absolute command, not bare PATH.
+    return _bin.resolve_mcp_command()
 
 
 async def _call_tool(cmd: str, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -109,7 +115,7 @@ async def _call_tool(cmd: str, name: str, arguments: Dict[str, Any]) -> Dict[str
 async def _list_skills() -> Dict[str, Any]:
     cmd = _mcp_cmd()
     if not cmd:
-        return {'ok': False, 'error': 'vibe-trading-mcp binary not on PATH'}
+        return {'ok': False, 'error': 'vibe-trading-mcp not found; check mcp_command and the plugin install'}
 
     res = await _call_tool(cmd, 'list_skills', {})
     if not res.get('ok'):
@@ -182,7 +188,7 @@ async def _list_skills() -> Dict[str, Any]:
 async def _load_skill(skill_name: str) -> Dict[str, Any]:
     cmd = _mcp_cmd()
     if not cmd:
-        return {'ok': False, 'error': 'vibe-trading-mcp binary not on PATH'}
+        return {'ok': False, 'error': 'vibe-trading-mcp not found; check mcp_command and the plugin install'}
     res = await _call_tool(cmd, 'load_skill', {'name': skill_name})
     if not res.get('ok'):
         return res

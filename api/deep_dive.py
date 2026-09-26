@@ -35,15 +35,21 @@ PLUGIN_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PLUGIN_ROOT not in sys.path:
     sys.path.insert(0, PLUGIN_ROOT)
 
+# Two-venv trap: shared canonical binary resolver (plugin root, shadow-proof).
+# Resolves the SAME absolute binary hooks.install() registers, instead of a
+# bare PATH lookup that picks the app venv. See vibe_trading_bin.py.
+import vibe_trading_bin as _bin
+
 
 _CACHE_TTL_SECONDS = 60.0
-_OUTER_TIMEOUT = 25.0
 _INNER_TIMEOUT = 12.0
-_INIT_TIMEOUT = 10.0
+_INIT_TIMEOUT = _bin.MCP_INIT_TIMEOUT_S
+_OUTER_TIMEOUT = _bin.call_budget(25.0, _INNER_TIMEOUT)
 
 
 def _mcp_cmd() -> Optional[str]:
-    return shutil.which('vibe-trading-mcp')
+    # Two-venv trap: honour the pinned absolute command, not bare PATH.
+    return _bin.resolve_mcp_command()
 
 
 async def _call_tool(cmd: str, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -88,7 +94,7 @@ async def _gather_deep_dive(symbol: str) -> Dict[str, Any]:
     if not cmd:
         return {
             'ok': False,
-            'error': 'vibe-trading-mcp binary not on PATH',
+            'error': 'vibe-trading-mcp not found; check mcp_command and the plugin install',
             'symbol': symbol,
         }
 

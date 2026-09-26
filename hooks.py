@@ -34,6 +34,11 @@ log = logging.getLogger(__name__)
 PLUGIN_NAME = "vibe_trading"
 PLUGIN_TITLE = "Vibe-Trading"
 from version_sync import read_plugin_yaml_version, sync_plugin_version, FALLBACK as _VS_FALLBACK
+# Single source of truth for locating the upstream binaries (the two-venv
+# trap). hooks, the API handlers, execute.py and the discovery banner all
+# resolve through this module, so a probe can never target a different
+# install than the one registered here.
+import vibe_trading_bin as _bin
 PLUGIN_VERSION = read_plugin_yaml_version() or _VS_FALLBACK
 MCP_SERVER_KEY = "vibe-trading"  # the key inside mcpServers
 
@@ -149,28 +154,17 @@ def _build_mcp_entry(cfg: Dict[str, Any]) -> Dict[str, Any]:
     raw_command = str(cfg.get("mcp_command") or "vibe-trading-mcp")
     # Resolve to an absolute path so the MCP client can spawn the server
     # even when its PATH does not include the venv where vibe-trading-ai was
-    # installed. Common case: supervisord-managed web server runs out of
-    # /opt/venv-a0/, but `pip install vibe-trading-ai` lands in /opt/venv/
-    # (the active interactive shell venv). Using shutil.which() at install
-    # time bakes the absolute path into the MCP entry so the framework never
-    # has to search the PATH itself. If the user already set an absolute
-    # path we trust it as-is.
+    # installed. The container runs two venvs (/opt/venv for the interactive
+    # CLI, /opt/venv-a0 for the A0 app process), and this hook runs INSIDE the
+    # app -- so a bare PATH lookup here would bake the app venv into the
+    # registration while the user installed into the other one. The shared
+    # resolver applies the config pin, then usr/settings.json, then PATH, then
+    # the well-known venv bin dirs, so this and every in-plugin probe agree.
+    # An absolute path already in the config is trusted as-is.
     if os.path.isabs(raw_command):
         command = raw_command
     else:
-        resolved = shutil.which(raw_command)
-        if not resolved:
-            # The caller's PATH may not include the venv that pip installed
-            # into (e.g. a bare `docker exec` shell runs execute.py with only
-            # the base image PATH). Probing the well-known venv bin dirs keeps
-            # the registered entry absolute instead of clobbering a previous
-            # absolute registration with a bare name the runtime cannot spawn.
-            for venv_bin in ("/opt/venv/bin", "/usr/local/bin"):
-                candidate = os.path.join(venv_bin, raw_command)
-                if os.path.isfile(candidate):
-                    resolved = candidate
-                    break
-        command = resolved if resolved else raw_command
+        command = _bin.resolve_mcp_command() or raw_command
     args = cfg.get("mcp_args") or []
     if isinstance(args, str):
         try:
@@ -276,18 +270,29 @@ def _is_vibe_trading_installed() -> Tuple[bool, Optional[str]]:
 def _status_snapshot() -> Dict[str, Any]:
     cfg = _merge_configs()
     installed, version = _is_vibe_trading_installed()
-    cmd = str(cfg.get("mcp_command") or "vibe-trading-mcp")
-    cmd_exists = shutil.which(cmd) is not None
+    # Resolve through the shared resolver: the reported path must be the same
+    # absolute binary install() registers, not a bare PATH lookup that in the
+    # app process resolves to the OTHER venv (the two-venv trap).
+    resolved = _bin.resolve_or_none()
     servers = _get_current_mcp_servers()
     registered = MCP_SERVER_KEY in servers
+    registered_cmd = (servers.get(MCP_SERVER_KEY) or {}).get("command") if registered else None
     risk = cfg.get("risk_tier", "research")
     return {
         "plugin": PLUGIN_NAME,
         "version": PLUGIN_VERSION,
         "vibe_trading_ai_installed": installed,
         "vibe_trading_ai_version": version,
-        "mcp_command": cmd,
-        "mcp_command_exists": cmd_exists,
+        "mcp_command": resolved["mcp_command"],
+        "mcp_command_exists": resolved["mcp_command_exists"],
+        "cli_command": resolved["cli_command"],
+        "cli_command_exists": resolved["cli_command_exists"],
+        "mcp_registered_command": registered_cmd,
+        # True when the live server and every in-plugin probe point at the
+        # same file. False means the two-venv split is live again.
+        "mcp_command_matches_registered": bool(
+            registered_cmd and resolved["mcp_command"] == registered_cmd
+        ),
         "mcp_enabled_in_config": bool(cfg.get("mcp_enabled", True)),
         "mcp_registered_in_settings": registered,
         "risk_tier": risk,
@@ -376,6 +381,93 @@ def get_status() -> Dict[str, Any]:
     return _status_snapshot()
 
 
+# ---------------------------------------------------------------------------
+# Shipped-file manifest -- single source of truth for the health check.
+# execute.py, hooks.self_check() and the unit tests all read this, so the
+# list cannot drift between them the way the old copy-pasted pair did.
+# ---------------------------------------------------------------------------
+
+REQUIRED_FILES: Tuple[str, ...] = (
+    "plugin.yaml",
+    "default_config.yaml",
+    "hooks.py",
+    "execute.py",
+    "version_sync.py",
+    "vibe_trading_cache.py",
+    "vibe_trading_bin.py",
+    "scripts/check_v22_contract.py",
+    "LICENSE",
+    "README.md",
+    "agents/vibe-trader/agent.yaml",
+    "api/stats.py",
+    "api/sync_mcp.py",
+    "api/tools.py",
+    "api/dashboard.py",
+    "api/loader_health.py",
+    "api/swarms.py",
+    "api/shadow.py",
+    "api/alphazoo.py",
+    "api/connectors.py",
+    "api/deep_dive.py",
+    "api/skills.py",
+    "api/watch.py",
+    "api/portfolio.py",
+    "api/risk_guard.py",
+    "api/journal.py",
+    "api/journal_upload.py",
+    "api/research_goals.py",
+    "webui/main.html",
+    "webui/page.html",
+    "webui/config.html",
+    "webui/dashboard.html",
+    "webui/dashboard.css",
+    "webui/dashboard.js",
+    "webui/shared.js",
+    "webui/thumbnail.png",
+    "webui/alphazoo.html",
+    "webui/swarms.html",
+    "webui/shadow.html",
+    "webui/deepdive.html",
+    "webui/skills.html",
+    "webui/risk.html",
+    "webui/journal.html",
+    "webui/goals.html",
+    "webui/watch.html",
+    "webui/portfolio.html",
+    "extensions/python/banners/_10_vibe_trading_discovery.py",
+    "extensions/webui/page-head/vibe-trading-head.html",
+    "extensions/webui/chat-input-bottom-actions-end/vibe-trading-btn.html",
+    "extensions/webui/get_tool_message_handler/vibe-trading-backtest-card.js",
+    "tests/test_plugin_internals.py",
+)
+
+# Every handler the AGENTS.md contract advertises. Kept explicit so a renamed
+# or accidentally dropped api/<name>.py is a health-check failure.
+API_HANDLERS: Tuple[str, ...] = (
+    "stats", "sync_mcp", "tools", "dashboard", "loader_health", "swarms",
+    "shadow", "alphazoo", "connectors", "deep_dive", "skills", "watch",
+    "portfolio", "risk_guard", "journal", "journal_upload", "research_goals",
+)
+
+
+def check_required_files() -> Dict[str, bool]:
+    """Presence map for every shipped file, cross-checked against plugin.yaml.
+
+    The manifest-declared `webui` entries are added so a file listed in
+    plugin.yaml but missing on disk is reported (it renders as a dead tab in
+    the Plugins UI) instead of silently passing.
+    """
+    here = _plugin_root()
+    status = {p: os.path.isfile(os.path.join(here, p)) for p in REQUIRED_FILES}
+    for entry in _read_yaml(os.path.join(here, "plugin.yaml")).get("webui") or []:
+        name = str(entry).strip().lstrip("/")
+        if not name:
+            continue
+        rel = name if name.startswith("webui/") else "webui/" + name
+        status[rel] = os.path.isfile(os.path.join(here, rel))
+    return status
+
+
 def sync_now() -> Dict[str, Any]:
     """Force a re-sync from current plugin config to settings.json."""
     return install()
@@ -384,34 +476,11 @@ def sync_now() -> Dict[str, Any]:
 def self_check() -> Dict[str, Any]:
     """Lightweight file & import probe for the Plugins UI / health endpoint."""
     here = _plugin_root()
-    required = [
-        "plugin.yaml",
-        "default_config.yaml",
-        "hooks.py",
-        "execute.py",
-        "LICENSE",
-        "README.md",
-        "agents/vibe-trader/agent.yaml",
-        "api/stats.py",
-        "api/sync_mcp.py",
-        "api/tools.py",
-        "api/watch.py",
-        "api/portfolio.py",
-        "api/research_goals.py",
-        "webui/config.html",
-        "webui/page.html",
-        "webui/goals.html",
-        "webui/watch.html",
-        "webui/portfolio.html",
-        "webui/dashboard.html",
-        "webui/dashboard.css",
-        "webui/dashboard.js",
-        "webui/shared.js",
-        "extensions/python/banners/_10_vibe_trading_discovery.py",
-        "extensions/webui/page-head/vibe-trading-head.html",
-    ]
-    files_status = {p: os.path.isfile(os.path.join(here, p)) for p in required}
+    files_status = check_required_files()
     snap = _status_snapshot()
     snap["files"] = files_status
+    snap["files_ok"] = all(files_status.values())
+    snap["missing_files"] = sorted(k for k, v in files_status.items() if not v)
+    snap["api_handlers"] = list(API_HANDLERS)
     snap["plugin_root"] = here
     return snap

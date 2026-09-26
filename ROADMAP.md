@@ -77,6 +77,63 @@ lands — the lockstep check now fails loudly if the five static sites and
    order-migration hint to `config.html`, Robinhood in broker docs,
    portfolio-v3 history note on `portfolio.html`, Alpha Zoo caveat refresh.)
 
+## Tier 7 — two-venv closure + health-manifest hardening (2026-09-26)
+
+**STATUS: COMPLETE (2026-09-26).** Audit-driven, not driven by an upstream
+release: PyPI and GitHub tags still top out at **v0.1.15** (verified), so the
+Tier 5 item-4 "run the upgrade playbook when upstream ships" stays correctly
+deferred. `main` has moved `a4821b1` (2026-09-22) → `b4569ff` (2026-09-26);
+that drift is a `pip install -U` away when the release lands, and the
+lockstep check will fail loudly until the five static sites are bumped.
+
+Instead this tier closed the *half-finished* part of the 2026-09-22 incident.
+
+1. **P0 — the two-venv fix never reached the handlers.** The incident fix
+   pinned `config.json` and taught `hooks._build_mcp_entry` +
+   `execute._resolve_mcp_command` to honour the pin, but 14 API-handler call
+   sites and the discovery banner still called
+   `shutil.which('vibe-trading-mcp')` directly. Verified live against
+   `/proc/986/environ`: the A0 app runs with `PATH=/opt/venv-a0/bin:...`, so
+   every WebUI panel resolved `/opt/venv-a0/bin/…` while the agent's
+   registered server used `/opt/venv/bin/…`. Two binaries behind one plugin —
+   a stale tool count, a different version banner, and a portfolio roll-up
+   read from a different install than the one the MCP tools write.
+2. New `vibe_trading_bin.py` — the single resolver (config pin →
+   `usr/settings.json` → `PATH` → well-known venv bin dirs, never a bare
+   name). All 14 handler sites, the two `hooks` call sites, `execute.py` and
+   the banner now route through it. The CLI resolver deliberately prefers the
+   MCP pin's sibling directory. `hooks._status_snapshot()` gained
+   `mcp_registered_command` + `mcp_command_matches_registered`.
+3. **`execute.py verify-resolver`** — a two-venv diagnostic subcommand.
+   Confirmed green in-container under the app's real PATH: all five checks
+   pass, both binaries resolve to `/opt/venv/bin`.
+4. **P0 — MCP initialization deadlines.** All handlers now allow 25s for
+   `session.initialize()`. Shared `call_budget()` ensures each request's
+   outer deadline also covers initialization, the bounded tool call, and a
+   one-second margin; the dashboard's old 10s budget and deep-dive's tight
+   25s total budget are both addressed.
+5. **P1 — the required-file health list was stale and duplicated.** It named
+   24 files against a 51-file plugin, so `api/dashboard.py`, `api/shadow.py`,
+   most webui pages, `version_sync.py` and 2 of 3 extensions went unchecked
+   while it still printed "all required files present". Replaced by
+   `hooks.REQUIRED_FILES` / `hooks.API_HANDLERS` / `check_required_files()`,
+   which also folds in `plugin.yaml`'s `webui:` list (a declared-but-missing
+   page is a dead tab, so it is now a failure).
+6. **P1 — `api/risk_guard.py` read only `config.json`**, so a `risk_tier` set
+   only in `default_config.yaml` was invisible to the gate. Now uses
+   `vibe_trading_bin.effective_config()`, matching `hooks._merge_configs`.
+7. **P1 — doc drift the Tier 4 sweep missed:** banner copy "54 → 74 tools",
+   `HANDOFF.md` troubleshooting "54 tools" ×2, `default_config.yaml`
+   "53 → 73 MCP tools", `README.md` "27 → 40 tests". Added a
+   `verify-resolver` troubleshooting entry to `HANDOFF.md`.
+8. **Tests: 30 → 43.** Resolver coverage includes pin precedence, stale-pin
+   fallback, settings-entry consultation, registered-command precedence over
+   process PATH, CLI-sibling preference, never-a-bare-name, config merge
+   parity, and shared startup/tool budgets. Contract guards cover no bare
+   `shutil.which` under `api/`+`extensions/`, initialize timeouts, manifest
+   coverage, and handler call budgets. The bare-which guard was verified to
+   fail when a regression is reintroduced (it caught three missed sites).
+
 ## Tier 6 — main-branch pre-ship (2026-09-22)
 
 **STATUS: COMPLETE (2026-09-22).** 0.1.16 was NOT released upstream — PyPI and

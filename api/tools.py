@@ -26,6 +26,11 @@ PLUGIN_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PLUGIN_ROOT not in sys.path:
     sys.path.insert(0, PLUGIN_ROOT)
 
+# Two-venv trap: shared canonical binary resolver (plugin root, shadow-proof).
+# This module is the shared 15s-cached probe every other handler reuses, so it
+# MUST resolve the same absolute binary hooks.install() registered.
+import vibe_trading_bin as _bin
+
 _CACHE: Dict[str, Any] = {"tools": [], "fetched_at": 0.0, "error": None}
 _CACHE_TTL_SECONDS = 15.0
 _CACHE_LOCK: Optional[asyncio.Lock] = None
@@ -41,9 +46,12 @@ def _cache_lock() -> asyncio.Lock:
 
 
 async def _probe_tools() -> Dict[str, Any]:
-    cmd = shutil.which("vibe-trading-mcp")
+    cmd = _bin.resolve_mcp_command()
     if not cmd:
-        return {"tools": [], "error": "vibe-trading-mcp not on PATH"}
+        return {"tools": [], "error": "vibe-trading-mcp not found (checked the pinned "
+                                      "mcp_command, usr/settings.json, PATH and the "
+                                      "well-known venv bin dirs). Run: "
+                                      "pip install -U vibe-trading-ai"}
     try:
         from mcp import ClientSession, StdioServerParameters
         from mcp.client.stdio import stdio_client
@@ -55,12 +63,12 @@ async def _probe_tools() -> Dict[str, Any]:
         try:
             async with stdio_client(params) as (read, write):
                 async with ClientSession(read, write) as session:
-                    # Cold start of the upstream server is 8-25s (it imports 54
+                    # Cold start of the upstream server is 8-25s (it imports 74
                     # tool modules and warms the alpha registry, see AGENTS.md
                     # invariant 1) — a 10s initialize timeout lost that race on
                     # every panel refresh right after an A0 restart. Still
                     # strictly bounded, just generous enough to win the race.
-                    await asyncio.wait_for(session.initialize(), timeout=25)
+                    await asyncio.wait_for(session.initialize(), timeout=_bin.MCP_INIT_TIMEOUT_S)
                     res = await asyncio.wait_for(session.list_tools(), timeout=15)
                     names_: List[str] = sorted([t.name for t in (res.tools or [])])
                     return {"tools": names_, "error": None}
@@ -68,7 +76,7 @@ async def _probe_tools() -> Dict[str, Any]:
             return {"tools": [], "error": str(e)[:300]}
 
     try:
-        return await asyncio.wait_for(_run(), timeout=45)
+        return await asyncio.wait_for(_run(), timeout=_bin.call_budget(45.0, 15.0))
     except Exception as e:  # pragma: no cover
         return {"tools": [], "error": str(e)[:300]}
 

@@ -37,7 +37,11 @@ installed upstream `vibe-trading-ai` via `version_sync` auto-sync, invariant 13)
 - A v2.2 contract check (`scripts/check_v22_contract.py`) run from `execute.py` that catches
   regressions to legacy `def announce(` banners or missing toggle.
 - A self-check / health script at `execute.py` (file presence, manifest, install state, MCP
-  live probe) callable from the Plugins UI or the terminal.
+  live probe) callable from the Plugins UI or the terminal, plus a
+  `verify-resolver` subcommand that reports the two-venv state.
+- Two plugin-root support modules, both named so the framework cannot shadow them:
+  `vibe_trading_cache.py` (TTL cache — see invariant 17) and
+  `vibe_trading_bin.py` (upstream-binary resolver — see invariant 18).
 
 ## HARD INVARIANTS — never violate
 1. **`mcp_client_init_timeout` must be ≥ 30s.** A0 v2.5 (`helpers/mcp_handler.py:1402`) reads
@@ -316,3 +320,58 @@ restart A0, then verify — in this order — (1) the registered
 probe of the REGISTERED binary (not `shutil.which`), (4) the tool count.
 `execute.py`'s probe alone is NOT sufficient evidence post-restart, because
 its `shutil.which` resolves in the exec-shell context, not the app's.
+
+## The two-venv split is now closed (2026-09-26) — read before adding a probe
+
+The 2026-09-22 fix was **partial**: it pinned `config.json` and made
+`hooks._build_mcp_entry` + `execute._resolve_mcp_command` honour the pin, but
+every API handler and the discovery banner still called
+`shutil.which('vibe-trading-mcp')` directly. Verified live: the A0 app
+process runs with `PATH=/opt/venv-a0/bin:...` (`/proc/986/environ`), so those
+call sites resolved `/opt/venv-a0/bin/vibe-trading-mcp` while the agent's
+registered server used `/opt/venv/bin/...`. Two different binaries behind one
+plugin: the WebUI panels could report a different tool count, a different
+version banner, and a different portfolio roll-up than the agent.
+
+**Invariant 18 — resolve the upstream binaries ONLY through
+`vibe_trading_bin`.** Never call `shutil.which('vibe-trading...')` in a
+handler, hook, extension, or script. Use:
+
+| Need | Call |
+|---|---|
+| MCP console script | `import vibe_trading_bin as _bin; _bin.resolve_mcp_command()` |
+| Upstream CLI (`vibe-trading`) | `_bin.resolve_cli_command()` |
+| Effective config (defaults + user) | `_bin.effective_config()` |
+| Health/report bundle | `_bin.resolve_or_none()` |
+
+`tests/test_plugin_internals.py::test_handlers_do_not_bare_which_the_mcp_binary`
+fails if a bare `shutil.which('vibe-trading...')` reappears anywhere under
+`api/` or `extensions/`. The resolver precedence — config pin ->
+`usr/settings.json` -> `PATH` -> well-known venv bin dirs — is intentional;
+the CLI deliberately prefers the MCP pin's sibling directory so
+`portfolio show` can never read a different install's state than the MCP
+tools write. Diagnose a regression with
+`python execute.py verify-resolver`; `probe_matches_registered: false` means
+the split is live.
+
+**Invariant 19 — MCP request deadlines must cover cold initialization plus
+the tool call.** Every `session.initialize()` uses
+`vibe_trading_bin.MCP_INIT_TIMEOUT_S` (25s); every outer request deadline uses
+`call_budget(outer, inner)` so it cannot expire before initialization and the
+bounded tool call complete. Do not set an outer timeout independently below
+that combined budget.
+
+## Shipped-file manifest lives in hooks.py (2026-09-26)
+
+`execute.py` and `hooks.self_check()` used to carry independent
+copy-pasted required-file lists. They had already drifted: the list named 24
+files while the plugin ships 51, so `api/dashboard.py`, `api/shadow.py`, all
+but two webui pages, `version_sync.py` and two of three extensions went
+unchecked while the health check still printed "all required files present".
+
+**Invariant 20 — `hooks.REQUIRED_FILES` / `hooks.API_HANDLERS` are the single
+source of truth.** Add new handlers and pages there; `check_required_files()`
+also folds in the `webui:` list from `plugin.yaml`, so a page declared in the
+manifest but missing on disk is a failure (it renders as a dead tab).
+`test_shipped_file_manifest_is_complete` fails if any shipped
+`.py/.html/.js/.css` under `api/` or `webui/` is absent from the manifest.

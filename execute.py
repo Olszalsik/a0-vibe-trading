@@ -32,44 +32,32 @@ if _SCRIPTS not in sys.path:
 
 PLUGIN_NAME = "vibe_trading"
 EXPECTED_VERSION = "0.1.15"
+# Subcommands: (none) = full health check, "verify-resolver" = two-venv report.
+_ARGV = sys.argv[1:]
+
+
 def _print(msg: str) -> None:
     print(msg, flush=True)
 
 
 def _check_files() -> bool:
-    required = [
-        "plugin.yaml",
-        "default_config.yaml",
-        "hooks.py",
-        "execute.py",
-        "LICENSE",
-        "README.md",
-        "agents/vibe-trader/agent.yaml",
-        "api/stats.py",
-        "api/sync_mcp.py",
-        "api/tools.py",
-        "api/watch.py",
-        "api/portfolio.py",
-        "api/research_goals.py",
-        "webui/config.html",
-        "webui/page.html",
-        "webui/goals.html",
-        "webui/watch.html",
-        "webui/portfolio.html",
-        "webui/dashboard.html",
-        "webui/dashboard.css",
-        "webui/dashboard.js",
-        "webui/shared.js",
-        "extensions/python/banners/_10_vibe_trading_discovery.py",
-        "extensions/webui/page-head/vibe-trading-head.html",
-    ]
-    missing = [p for p in required if not os.path.isfile(os.path.join(_HERE, p))]
+    # Single source of truth: hooks.REQUIRED_FILES + the plugin.yaml webui
+    # surface, so this list can no longer drift out of sync with the tree
+    # (it previously checked 24 of 60+ shipped files and still reported
+    # "all required files present").
+    try:
+        import hooks as _hooks  # noqa: E402  # local plugin import
+        status = _hooks.check_required_files()
+    except Exception as e:
+        _print(f"[{PLUGIN_NAME}] ERROR: cannot read the shipped-file manifest: {e}")
+        return False
+    missing = sorted(p for p, ok in status.items() if not ok)
     if missing:
-        _print(f"[{PLUGIN_NAME}] ERROR: missing files:")
+        _print(f"[{PLUGIN_NAME}] ERROR: missing files ({len(missing)} of {len(status)}):")
         for m in missing:
             _print(f"  - {m}")
         return False
-    _print(f"[{PLUGIN_NAME}] OK: all {len(required)} required files present")
+    _print(f"[{PLUGIN_NAME}] OK: all {len(status)} required files present")
     return True
 
 
@@ -128,21 +116,14 @@ def _check_manifest() -> bool:
 def _resolve_mcp_command() -> "str | None":
     """Find the vibe-trading-mcp console script.
 
-    shutil.which() alone fails in bare shells whose PATH omits the venv pip
-    installed into (e.g. `docker exec` runs with only the base image PATH,
-    while the A0 app process extends PATH with /opt/venv/bin). Probing the
-    well-known venv bin dirs keeps the health check and the probe working in
-    both environments, matching hooks._build_mcp_entry's resolver.
+    Delegates to the shared resolver (vibe_trading_bin) so the health check,
+    the API handlers, the discovery banner and hooks.install() all resolve the
+    SAME absolute binary. A bare shutil.which() here would resolve in the
+    exec shell's context (the interactive venv) and could differ from the app
+    process's choice, which is exactly what the two-venv trap caused.
     """
-    import shutil
-    cmd_path = shutil.which("vibe-trading-mcp")
-    if cmd_path:
-        return cmd_path
-    for venv_bin in ("/opt/venv/bin", "/usr/local/bin"):
-        candidate = os.path.join(venv_bin, "vibe-trading-mcp")
-        if os.path.isfile(candidate):
-            return candidate
-    return None
+    import vibe_trading_bin as _bin  # noqa: E402
+    return _bin.resolve_mcp_command()
 
 
 def _check_installation() -> dict:
@@ -211,6 +192,51 @@ def _probe_mcp_server() -> dict:
         return {"probed": False, "error": str(e)[:300]}
 
 
+def verify_resolver() -> dict:
+    """Two-venv diagnostic: is every path pointing at the SAME install?
+
+    The failure this catches is subtle and was live on 2026-09-26: the app
+    process's PATH resolves vibe-trading-mcp to /opt/venv-a0/bin while
+    config.json pins the registered server to /opt/venv/bin, so the WebUI
+    panels quietly probe a different binary than the agent uses. `ok` is
+    False whenever the two disagree, or the pin points at a missing file.
+    """
+    try:
+        import hooks as _hooks  # noqa: E402  # local plugin import
+        import vibe_trading_bin as _bin  # noqa: E402
+    except Exception as e:
+        return {"ok": False, "error": f"cannot import plugin modules: {e}"}
+
+    snap = _hooks._status_snapshot()
+    resolved = _bin.resolve_or_none()
+    mcp = resolved.get("mcp_command")
+    registered = snap.get("mcp_registered_command")
+
+    checks = {
+        "mcp_command_resolved": bool(mcp),
+        "cli_command_resolved": bool(resolved.get("cli_command")),
+        "server_registered": bool(snap.get("mcp_registered_in_settings")),
+        # The load-bearing one: probes and the live server must agree.
+        "probe_matches_registered": bool(mcp and registered and mcp == registered),
+    }
+    same_venv = bool(
+        mcp
+        and resolved.get("cli_command")
+        and os.path.dirname(mcp) == os.path.dirname(resolved["cli_command"])
+    )
+    checks["mcp_and_cli_same_venv"] = same_venv
+
+    return {
+        "ok": all(checks.values()),
+        "checks": checks,
+        "resolved": resolved,
+        "registered_command": registered,
+        "mcp_client_init_timeout_note": (
+            "settings mcp_client_init_timeout must be >= 30s (AGENTS.md invariant 1)"
+        ),
+    }
+
+
 def main() -> int:
     _print(f"[{PLUGIN_NAME}] Plugin dir: {_HERE}")
     ok_v22 = _check_v22_contract()
@@ -244,6 +270,12 @@ def main() -> int:
     _print("")
     _print(json.dumps(summary, indent=2, ensure_ascii=False))
     _print("")
+    # Subcommand dispatch. Guard the index: the Plugins-UI runner imports this
+    # module and calls main() with no argv, so `_ARGV` can legitimately be empty.
+    if _ARGV and _ARGV[0] == "verify-resolver":
+        print(json.dumps(verify_resolver(), indent=1))
+        return 0
+
     if not ok_v22:
         _print(f"[{PLUGIN_NAME}] Health check FAILED — v2.2 contract check failed.")
         return 2
@@ -262,3 +294,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

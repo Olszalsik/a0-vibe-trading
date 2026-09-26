@@ -36,6 +36,8 @@ if PLUGIN_ROOT not in sys.path:
 # helpers package shadows the plugin's, and its cache API is (area, key)-shaped
 # with no TTL. This plugin-root module is shadow-proof. See vibe_trading_cache.py.
 import vibe_trading_cache as _cache
+# Two-venv trap: shared canonical binary resolver (plugin root, shadow-proof).
+import vibe_trading_bin as _bin
 
 
 _CACHE_NS = 'loader_health.probe'
@@ -71,7 +73,7 @@ async def _call_tool(cmd: str, name: str, arguments: Dict[str, Any], outer: floa
     async def _run():
         async with stdio_client(params) as (read, write):
             async with ClientSession(read, write) as session:
-                await asyncio.wait_for(session.initialize(), timeout=10)
+                await asyncio.wait_for(session.initialize(), timeout=_bin.MCP_INIT_TIMEOUT_S)
                 res = await asyncio.wait_for(session.call_tool(name, arguments), timeout=inner)
                 texts: List[str] = []
                 for item in (getattr(res, 'content', None) or []):
@@ -89,7 +91,7 @@ async def _call_tool(cmd: str, name: str, arguments: Dict[str, Any], outer: floa
                 return {'ok': True, 'raw': joined[:4000]}
 
     try:
-        return await asyncio.wait_for(_run(), timeout=outer)
+        return await asyncio.wait_for(_run(), timeout=_bin.call_budget(outer, inner))
     except Exception as e:
         return {'ok': False, 'error': str(e)[:300]}
 
@@ -139,9 +141,9 @@ async def _probe_all(force: bool = False) -> Dict[str, Any]:
     if not force and cached_payload is not None:
         return {'cached': True, **cached_payload}
 
-    cmd = shutil.which('vibe-trading-mcp')
+    cmd = _bin.resolve_mcp_command()
     if not cmd:
-        out = {'mcp_available': False, 'error': 'vibe-trading-mcp not on PATH', 'results': []}
+        out = {'mcp_available': False, 'error': 'vibe-trading-mcp not found; check mcp_command and the plugin install', 'results': []}
         _cache.set(_CACHE_NS, out, ttl=_CACHE_TTL_SECONDS)
         return out
 

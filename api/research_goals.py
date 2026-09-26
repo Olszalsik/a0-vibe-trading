@@ -23,7 +23,6 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import shutil
 import sys
 from typing import Any, Dict, List
 
@@ -39,6 +38,8 @@ if PLUGIN_ROOT not in sys.path:
 # helpers package shadows the plugin's, and its cache API is (area, key)-shaped
 # with no TTL. This plugin-root module is shadow-proof. See vibe_trading_cache.py.
 import vibe_trading_cache as _cache
+# Two-venv trap: shared canonical binary resolver (plugin root, shadow-proof).
+import vibe_trading_bin as _bin
 
 _LIST_NS = 'research_goals.list'
 _LIST_TTL_SECONDS = 30.0
@@ -60,7 +61,7 @@ async def _call_tool(cmd: str, name: str, arguments: Dict[str, Any], outer: floa
     async def _run():
         async with stdio_client(params) as (read, write):
             async with ClientSession(read, write) as session:
-                await asyncio.wait_for(session.initialize(), timeout=10)
+                await asyncio.wait_for(session.initialize(), timeout=_bin.MCP_INIT_TIMEOUT_S)
                 res = await asyncio.wait_for(session.call_tool(name, arguments), timeout=inner)
                 texts: List[str] = []
                 for item in (getattr(res, 'content', None) or []):
@@ -78,7 +79,7 @@ async def _call_tool(cmd: str, name: str, arguments: Dict[str, Any], outer: floa
                 return {'ok': True, 'raw': joined[:12000]}
 
     try:
-        return await asyncio.wait_for(_run(), timeout=outer)
+        return await asyncio.wait_for(_run(), timeout=_bin.call_budget(outer, inner))
     except Exception as e:
         return {'ok': False, 'error': str(e)[:400]}
 
@@ -91,9 +92,9 @@ def _invalidate_goal_caches(goal_id: str = '') -> None:
 
 
 async def _goals_action(action: str, payload: Dict[str, Any]) -> Dict[str, Any]:
-    cmd = shutil.which('vibe-trading-mcp')
+    cmd = _bin.resolve_mcp_command()
     if not cmd:
-        return {'ok': False, 'error': 'vibe-trading-mcp not on PATH'}
+        return {'ok': False, 'error': 'vibe-trading-mcp not found; check mcp_command and package installation'}
 
     if action == 'list':
         hit = _cache.get(_LIST_NS)

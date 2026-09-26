@@ -27,7 +27,7 @@ mcp_args: []
 # ---------------------------------------------------------------------------
 # LLM provider — used by Vibe-Trading's run_swarm multi-agent team feature
 # ---------------------------------------------------------------------------
-# Only `run_swarm` consumes an LLM key. All other 53 MCP tools run
+# Only `run_swarm` consumes an LLM key. All other 73 MCP tools run
 # key-free for HK/US/crypto and free for A-shares via akshare/baostock.
 # Recommended: deepseek/deepseek-v4-pro via OpenRouter (cheap + strong).
 llm_provider: openrouter

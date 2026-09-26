@@ -31,7 +31,6 @@ import asyncio
 import hashlib
 import json
 import os
-import shutil
 import sys
 import time
 from typing import Any, Dict, List
@@ -43,6 +42,9 @@ PLUGIN_NAME = 'vibe_trading'
 PLUGIN_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PLUGIN_ROOT not in sys.path:
     sys.path.insert(0, PLUGIN_ROOT)
+
+# Two-venv trap: shared canonical binary resolver (plugin root, shadow-proof).
+import vibe_trading_bin as _bin
 
 
 _CACHE: Dict[str, Any] = {'fetched_at': 0.0, 'key': None, 'report': None}
@@ -61,7 +63,7 @@ async def _call_tool(cmd: str, name: str, arguments: Dict[str, Any], outer: floa
     async def _run():
         async with stdio_client(params) as (read, write):
             async with ClientSession(read, write) as session:
-                await asyncio.wait_for(session.initialize(), timeout=10)
+                await asyncio.wait_for(session.initialize(), timeout=_bin.MCP_INIT_TIMEOUT_S)
                 res = await asyncio.wait_for(session.call_tool(name, arguments), timeout=inner)
                 texts: List[str] = []
                 for item in (getattr(res, 'content', None) or []):
@@ -79,15 +81,15 @@ async def _call_tool(cmd: str, name: str, arguments: Dict[str, Any], outer: floa
                 return {'ok': True, 'raw': joined[:12000]}
 
     try:
-        return await asyncio.wait_for(_run(), timeout=outer)
+        return await asyncio.wait_for(_run(), timeout=_bin.call_budget(outer, inner))
     except Exception as e:
         return {'ok': False, 'error': str(e)[:400]}
 
 
 async def _run_loop(payload: Dict[str, Any]) -> Dict[str, Any]:
-    cmd = shutil.which('vibe-trading-mcp')
+    cmd = _bin.resolve_mcp_command()
     if not cmd:
-        return {'ok': False, 'error': 'vibe-trading-mcp not on PATH', 'steps': []}
+        return {'ok': False, 'error': 'vibe-trading-mcp not found; check mcp_command and package installation', 'steps': []}
 
     journal_path = payload.get('journal_path') or ''
     if not journal_path:

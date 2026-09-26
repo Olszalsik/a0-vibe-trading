@@ -56,6 +56,8 @@ if PLUGIN_ROOT not in sys.path:
 # helpers package shadows the plugin's, and its cache API is (area, key)-shaped
 # with no TTL. This plugin-root module is shadow-proof. See vibe_trading_cache.py.
 import vibe_trading_cache as _cache
+# Two-venv trap: shared canonical binary resolver (plugin root, shadow-proof).
+import vibe_trading_bin as _bin
 
 _QUOTE_NS = 'dashboard.quote'
 _QUOTE_TTL_SECONDS = 5.0
@@ -91,10 +93,15 @@ def _factor_cache_key(payload: Dict[str, Any]) -> str:
 
 
 def _resolve_mcp_cmd() -> Optional[str]:
-    return shutil.which('vibe-trading-mcp')
+    # Two-venv trap: bare shutil.which() inside the A0 app resolves to
+    # /opt/venv-a0/bin, while config.json pins the registered server to
+    # /opt/venv/bin. Route through the shared resolver so every probe uses
+    # the SAME binary hooks.install() registered. See vibe_trading_bin.py.
+    return _bin.resolve_mcp_command()
 
 
 async def _call_tool(cmd: str, name: str, arguments: Dict[str, Any], outer_timeout: float = 30.0, inner_timeout: float = 25.0) -> Dict[str, Any]:
+    outer_timeout = _bin.call_budget(outer_timeout, inner_timeout)
     try:
         from mcp import ClientSession, StdioServerParameters
         from mcp.client.stdio import stdio_client
@@ -106,7 +113,11 @@ async def _call_tool(cmd: str, name: str, arguments: Dict[str, Any], outer_timeo
     async def _run():
         async with stdio_client(params) as (read, write):
             async with ClientSession(read, write) as session:
-                await asyncio.wait_for(session.initialize(), timeout=10)
+                # Cold start of the upstream server is 8-25s (AGENTS.md
+                # invariant 1). This was 10s, which LOST that race on every
+                # dashboard action right after an A0 restart. Same 25s
+                # initialize budget as api/tools.py.
+                await asyncio.wait_for(session.initialize(), timeout=_bin.MCP_INIT_TIMEOUT_S)
                 res = await asyncio.wait_for(session.call_tool(name, arguments), timeout=inner_timeout)
                 payload = getattr(res, 'content', None)
                 if payload is None:
@@ -139,7 +150,7 @@ def _quote_cache_key(codes: List[str], source: str) -> str:
 async def _quote(codes: List[str], source: str = 'auto') -> Dict[str, Any]:
     cmd = _resolve_mcp_cmd()
     if not cmd:
-        return {'ok': False, 'error': 'vibe-trading-mcp not on PATH', 'cached': False}
+        return {'ok': False, 'error': 'vibe-trading-mcp not found; check mcp_command and the plugin install', 'cached': False}
 
     today = time.strftime('%Y-%m-%d')
     cache_k = _quote_cache_key(codes, source)
@@ -172,7 +183,7 @@ async def _quote(codes: List[str], source: str = 'auto') -> Dict[str, Any]:
 async def _backtest(run_dir: str) -> Dict[str, Any]:
     cmd = _resolve_mcp_cmd()
     if not cmd:
-        return {'ok': False, 'error': 'vibe-trading-mcp not on PATH'}
+        return {'ok': False, 'error': 'vibe-trading-mcp not found; check mcp_command and the plugin install'}
     cache_k = _BACKTEST_NS + '|' + run_dir
     hit = _cache.get(cache_k)
     if hit is not None:
@@ -194,7 +205,7 @@ async def _patterns(run_dir: str) -> Dict[str, Any]:
         return {'ok': False, 'error': 'run_dir is required (path to a backtest run directory containing artifacts/ohlcv_*.csv)'}
     cmd = _resolve_mcp_cmd()
     if not cmd:
-        return {'ok': False, 'error': 'vibe-trading-mcp not on PATH'}
+        return {'ok': False, 'error': 'vibe-trading-mcp not found; check mcp_command and the plugin install'}
     # Older upstream builds (< 0.1.10) lack the tool; surface a clear message.
     try:
         from api.tools import _get_tools
@@ -226,7 +237,7 @@ async def _factor(payload: Dict[str, Any]) -> Dict[str, Any]:
         return {'ok': False, 'error': 'codes (list) and factor_name (str) are required'}
     cmd = _resolve_mcp_cmd()
     if not cmd:
-        return {'ok': False, 'error': 'vibe-trading-mcp not on PATH'}
+        return {'ok': False, 'error': 'vibe-trading-mcp not found; check mcp_command and the plugin install'}
     arguments = {
         'codes': codes,
         'factor_name': factor_name,

@@ -47,6 +47,8 @@ if PLUGIN_ROOT not in sys.path:
 # helpers package shadows the plugin's, and its cache API is (area, key)-shaped
 # with no TTL. This plugin-root module is shadow-proof. See vibe_trading_cache.py.
 import vibe_trading_cache as _cache
+# Two-venv trap: shared canonical binary resolver (plugin root, shadow-proof).
+import vibe_trading_bin as _bin
 
 _SUMMARY_NS = 'portfolio.summary'
 _SUMMARY_TTL_SECONDS = 120.0
@@ -60,15 +62,11 @@ _CLI_SOURCES_TIMEOUT_SECONDS = 30.0
 
 
 def _vibe_cli_path() -> str:
-    cli = shutil.which('vibe-trading')
-    if cli:
-        return cli
-    mcp_cmd = shutil.which('vibe-trading-mcp')
-    if mcp_cmd:
-        sibling = os.path.join(os.path.dirname(mcp_cmd), 'vibe-trading')
-        if os.path.isfile(sibling):
-            return sibling
-    return ''
+    # Two-venv trap: resolve the CLI from the same venv that serves the MCP
+    # tools, so `portfolio show` cannot read a different install's state
+    # than the one the MCP tools write.
+    cli = _bin.resolve_cli_command()
+    return cli or ''
 
 
 def _run_cli(cli: str, args: List[str], timeout: float) -> Dict[str, Any]:
@@ -112,7 +110,7 @@ async def _call_tool(cmd: str, name: str, arguments: Dict[str, Any], outer: floa
     async def _run():
         async with stdio_client(params) as (read, write):
             async with ClientSession(read, write) as session:
-                await asyncio.wait_for(session.initialize(), timeout=10)
+                await asyncio.wait_for(session.initialize(), timeout=_bin.MCP_INIT_TIMEOUT_S)
                 res = await asyncio.wait_for(session.call_tool(name, arguments), timeout=inner)
                 texts: List[str] = []
                 for item in (getattr(res, 'content', None) or []):
@@ -130,7 +128,7 @@ async def _call_tool(cmd: str, name: str, arguments: Dict[str, Any], outer: floa
                 return {'ok': True, 'raw': joined[:6000]}
 
     try:
-        return await asyncio.wait_for(_run(), timeout=outer)
+        return await asyncio.wait_for(_run(), timeout=_bin.call_budget(outer, inner))
     except Exception as e:
         return {'ok': False, 'error': str(e)[:300]}
 
@@ -158,9 +156,9 @@ class Portfolio(ApiHandler):
                 if hit is not None:
                     return {'success': True, 'action': action, 'cached': True, **hit}
 
-            cmd = shutil.which('vibe-trading-mcp')
+            cmd = _bin.resolve_mcp_command()
             if not cmd:
-                return {'success': False, 'action': action, 'error': 'vibe-trading-mcp not on PATH'}
+                return {'success': False, 'action': action, 'error': 'vibe-trading-mcp not found (check the pinned mcp_command and the installed package)'}
 
             # MCP first: only call portfolio_summary when the live server
             # actually exposes it (upstream may add it later; today it is
@@ -200,7 +198,7 @@ class Portfolio(ApiHandler):
         if action == 'refresh':
             cli = _vibe_cli_path()
             if not cli:
-                return {'success': False, 'action': action, 'error': 'upstream vibe-trading CLI not on PATH'}
+                return {'success': False, 'action': action, 'error': 'upstream vibe-trading CLI not found; check cli_command and the plugin install'}
             cli_res = _run_cli(cli, ['portfolio', 'refresh'], _CLI_REFRESH_TIMEOUT_SECONDS)
             _cache.invalidate(_SUMMARY_NS)
             return {'success': bool(cli_res.get('ok')), 'action': action, **cli_res}
@@ -208,7 +206,7 @@ class Portfolio(ApiHandler):
         if action == 'sources':
             cli = _vibe_cli_path()
             if not cli:
-                return {'success': False, 'action': action, 'error': 'upstream vibe-trading CLI not on PATH'}
+                return {'success': False, 'action': action, 'error': 'upstream vibe-trading CLI not found; check cli_command and the plugin install'}
             cli_res = _run_cli(cli, ['portfolio', 'sources'], _CLI_SOURCES_TIMEOUT_SECONDS)
             return {'success': bool(cli_res.get('ok')), 'action': action, **cli_res}
 

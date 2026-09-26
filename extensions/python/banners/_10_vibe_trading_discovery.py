@@ -29,6 +29,21 @@ from helpers import plugins as plugins_helper  # type: ignore
 PLUGIN_NAME = "vibe_trading"
 CARD_ID = "vibe_trading_discovery_v1"
 
+# Two-venv trap: the welcome banner runs INSIDE the A0 app process, whose PATH
+# is /opt/venv-a0/bin only. config.json pins the registered server to
+# /opt/venv/bin, so a bare shutil.which here would probe a different binary
+# than the agent actually uses -- and the banner would advertise a tool count
+# the live server does not have. Import the plugin-root resolver by path.
+import os as _os
+import sys as _sys
+
+_PLUGIN_ROOT = _os.path.dirname(
+    _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+)
+if _PLUGIN_ROOT not in _sys.path:
+    _sys.path.insert(0, _PLUGIN_ROOT)
+import vibe_trading_bin as _bin  # noqa: E402
+
 
 def _is_enabled() -> bool:
     try:
@@ -57,11 +72,11 @@ def _vibe_trading_ai_version() -> str:
 
 
 def _console_script_exists() -> bool:
-    return shutil.which("vibe-trading-mcp") is not None
+    return _bin.resolve_mcp_command() is not None
 
 
 async def _mcp_live(timeout: float = 3.0) -> bool:
-    cmd = shutil.which("vibe-trading-mcp")
+    cmd = _bin.resolve_mcp_command()
     if not cmd:
         return False
     try:
@@ -120,7 +135,7 @@ def execute(banners: list, **kwargs):
         "priority": 50,
         "title": "Vibe-Trading research tools are live",
         "description": (
-            "54 finance-research MCP tools (backtest, factor analysis, options, "
+            "74 finance-research MCP tools (backtest, factor analysis, options, "
             "shadow account, 462 alphas, 30 swarm presets) are now available. "
             "Pick the 'vibe-trader' agent profile to start, or open the "
             "plugin settings to add Tushare / LLM keys."
@@ -134,7 +149,7 @@ def execute(banners: list, **kwargs):
         "dismissible": True,
         "meta": {
             "plugin": PLUGIN_NAME,
-            "mcp_command": shutil.which("vibe-trading-mcp"),
+            "mcp_command": _bin.resolve_mcp_command(),
             # Follow the installed upstream package (version_sync policy);
             # the banner only renders when the package IS installed.
             "version": _vibe_trading_ai_version() or "unknown",

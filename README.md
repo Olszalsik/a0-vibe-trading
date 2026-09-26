@@ -287,6 +287,8 @@ The `vibe-trader` agent profile enforces five hard rules:
 | `api/watch.py` | `POST /api/plugins/vibe_trading/watch` — `list`, `add`, `remove`, `check` (price-alert rules, `watch_rules.json`) |
 | `api/portfolio.py` | `POST /api/plugins/vibe_trading/portfolio` — `summary` (MCP `portfolio_summary` when exposed, upstream-CLI aggregation fallback), `refresh`, `sources`, `account`, `positions` |
 | `helpers/cache.py` | Shared thread-safe TTL cache (used by 7 read-heavy handlers) |
+| `vibe_trading_cache.py` | Canonical TTL cache at plugin root (shadow-proof; handlers import this, NOT `helpers.cache`) |
+| `vibe_trading_bin.py` | Canonical upstream-binary resolver — the two-venv fix. Every handler, hook, the health check and the discovery banner resolve through it. |
 | `webui/main.html` | Standalone plugin page with live tool list |
 | `webui/page.html` | Full info page with live status + tool list |
 | `webui/config.html` | Settings page (Alpine + `plugin-settings-store`) |
@@ -316,13 +318,27 @@ The `vibe-trader` agent profile enforces five hard rules:
 pytest usr/plugins/vibe_trading/tests/test_plugin_internals.py -q
 ```
 
-27 tests cover: version lockstep (all five static sites + plugin.yaml),
+40 tests cover: version lockstep (all five static sites + plugin.yaml),
 the contract checker on the real tree and on synthetic drift/toggle-broken
 trees, `hooks._build_mcp_entry` translation (LLM/data-source/QVeris
 passthrough, `MARKET_DATA_ORDER_*` whitelist + normalization, hard
-invariants), TTL-cache semantics, and source-contract guards for the
+invariants), TTL-cache semantics, source-contract guards for the
 runtime-only modules (shadow journal-hash keying, portfolio CLI fallback,
-QVeris default-off).
+QVeris default-off), and the two-venv resolver — pin precedence, stale-pin
+fallback, `usr/settings.json` consultation, CLI-sibling preference, plus a
+source guard that fails if any handler re-introduces a bare
+`shutil.which('vibe-trading…')`.
+
+**Two-venv diagnostic (container):**
+
+```bash
+docker exec a0-inst-agent-zero-latest-mqtnkttk sh -c \
+  'cd /a0/usr/plugins/vibe_trading && /opt/venv/bin/python execute.py verify-resolver'
+```
+
+Confirms the pinned command, the registered server, and every in-plugin
+probe resolve to the same file. `probe_matches_registered: false` means the
+two-venv split is live again (see `AGENTS.md`).
 
 **Full health check (container):**
 
