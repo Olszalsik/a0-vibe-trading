@@ -86,9 +86,10 @@ gildata_base_url: ""
 # JSON object mapping market -> comma-separated source order, passed to the
 # MCP server as MARKET_DATA_ORDER_<MARKET> env vars. Example:
 #   {"FUTURES": "akshare,local", "US_EQUITY": "yfinance,stooq"}
-# Markets: A_SHARE, US_EQUITY, HK_EQUITY, INDIA_EQUITY, KR_EQUITY, CA_EQUITY,
-# VIETNAM_EQUITY, CRYPTO, FUTURES, FUND, MACRO, FOREX, INDEX. Empty = the
-# upstream default fallback chain.
+# Markets: A_SHARE, US_EQUITY, HK_EQUITY, UK_EQUITY, INDIA_EQUITY, KR_EQUITY,
+# CA_EQUITY, AR_EQUITY, VIETNAM_EQUITY, CRYPTO, FUTURES, FUND, MACRO, FOREX,
+# INDEX. Unknown markets are dropped, so a typo fails silently by design --
+# this list mirrors upstream agent/backtest/loaders/registry.py.
 market_data_order_json: "{}"
 
 # ---------------------------------------------------------------------------

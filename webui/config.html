@@ -219,7 +219,8 @@ unavailable and the chain skips it — no behavior change for existing setups.</
 <input type="text" x-model="config.market_data_order_json" placeholder='{"FUTURES": "akshare,local", "US_EQUITY": "yfinance,stooq"}' />
 <small>JSON object mapping market → comma-separated source order, passed to the MCP server as
 <code>MARKET_DATA_ORDER_*</code> env vars (upstream 0.1.15+). Markets: <code>A_SHARE, US_EQUITY, HK_EQUITY,
-INDIA_EQUITY, KR_EQUITY, CA_EQUITY, VIETNAM_EQUITY, CRYPTO, FUTURES, FUND, MACRO, FOREX, INDEX</code>.
+UK_EQUITY, INDIA_EQUITY, KR_EQUITY, CA_EQUITY, AR_EQUITY, VIETNAM_EQUITY, CRYPTO, FUTURES, FUND, MACRO,
+FOREX, INDEX</code>. Markets outside this list are dropped silently, so a typo has no effect.
 Empty = the upstream default fallback chain. Migration note (Gildata): an <code>A_SHARE</code> order
 saved before <code>gildata</code> joined the chain is a permutation of the old 7-source chain and stops
 validating — re-save it including <code>gildata</code>, or clear the field to fall back to the default order.</small>

@@ -525,6 +525,63 @@ def test_execute_subcommand_dispatch_matches_argv():
         assert is_sub is expected, 'argv={0!r} dispatched wrong'.format(argv)
 
 
+def test_market_order_whitelist_matches_upstream(hooks_mod):
+    '''The MARKET_DATA_ORDER_* whitelist must mirror upstream's loader registry.
+
+    Unknown markets are DROPPED rather than forwarded, so a market missing from
+    this set means a user's source-priority override is silently ignored. That
+    is exactly what happened to UK_EQUITY (added upstream 2026-09-09, missed by
+    the Tier 4 sweep) and AR_EQUITY (added 2026-09-26). This test pins the set;
+    bump it deliberately when upstream adds a market.
+    '''
+    import ast
+
+    src = (PLUGIN_ROOT / 'hooks.py').read_text(encoding='utf-8')
+    tree = ast.parse(src)
+    found = None
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if getattr(target, 'id', None) == 'known_order_markets':
+                    found = {e.value for e in node.value.elts}
+    assert found, 'known_order_markets not found in hooks.py'
+
+    # Upstream agent/backtest/loaders/registry.py as of b4569ff.
+    expected = {
+        'A_SHARE', 'US_EQUITY', 'HK_EQUITY', 'UK_EQUITY', 'INDIA_EQUITY',
+        'KR_EQUITY', 'CA_EQUITY', 'AR_EQUITY', 'VIETNAM_EQUITY', 'CRYPTO',
+        'FUTURES', 'FUND', 'MACRO', 'FOREX', 'INDEX',
+    }
+    assert found == expected, (
+        'market whitelist drifted from upstream; missing={0} extra={1}'.format(
+            sorted(expected - found), sorted(found - expected)))
+
+
+def test_market_order_env_is_emitted_for_every_whitelisted_market(hooks_mod):
+    '''Every whitelisted market must actually produce its env var.'''
+    markets = ['UK_EQUITY', 'AR_EQUITY', 'A_SHARE', 'CRYPTO']
+    cfg = {
+        'mcp_command': 'vibe-trading-mcp',
+        'market_data_order_json': json.dumps({m: 'yfinance,stooq' for m in markets}),
+    }
+    entry = hooks_mod._build_mcp_entry(cfg)
+    env = entry.get('env') or {}
+    for m in markets:
+        assert env.get('MARKET_DATA_ORDER_' + m) == 'yfinance,stooq', \
+            '{0} did not reach the server env'.format(m)
+
+
+def test_unknown_market_is_still_dropped(hooks_mod):
+    '''The whitelist must keep rejecting markets upstream does not declare.'''
+    cfg = {
+        'mcp_command': 'vibe-trading-mcp',
+        'market_data_order_json': json.dumps({'NOT_A_MARKET': 'yfinance'}),
+    }
+    entry = hooks_mod._build_mcp_entry(cfg)
+    env = entry.get('env') or {}
+    assert 'MARKET_DATA_ORDER_NOT_A_MARKET' not in env
+
+
 def test_effective_config_merges_defaults_then_user_overrides():
     '''config.json must win over default_config.yaml (hooks._merge_configs parity).'''
     sys.path.insert(0, str(PLUGIN_ROOT))

@@ -318,7 +318,7 @@ The `vibe-trader` agent profile enforces five hard rules:
 pytest usr/plugins/vibe_trading/tests/test_plugin_internals.py -q
 ```
 
-40 tests cover: version lockstep (all five static sites + plugin.yaml),
+46 tests cover: version lockstep (all five static sites + plugin.yaml),
 the contract checker on the real tree and on synthetic drift/toggle-broken
 trees, `hooks._build_mcp_entry` translation (LLM/data-source/QVeris
 passthrough, `MARKET_DATA_ORDER_*` whitelist + normalization, hard
@@ -327,7 +327,8 @@ runtime-only modules (shadow journal-hash keying, portfolio CLI fallback,
 QVeris default-off), and the two-venv resolver — pin precedence, stale-pin
 fallback, `usr/settings.json` consultation, CLI-sibling preference, plus a
 source guard that fails if any handler re-introduces a bare
-`shutil.which('vibe-trading…')`.
+`shutil.which('vibe-trading…')`, shared timeout budgets, and upstream market
+override whitelist synchronization.
 
 **Two-venv diagnostic (container):**
 

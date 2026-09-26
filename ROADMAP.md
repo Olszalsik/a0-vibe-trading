@@ -134,6 +134,32 @@ Instead this tier closed the *half-finished* part of the 2026-09-22 incident.
    coverage, and handler call budgets. The bare-which guard was verified to
    fail when a regression is reintroduced (it caught three missed sites).
 
+## Tier 8 — market override whitelist sync (2026-09-26)
+
+**STATUS: COMPLETE.** A review of `agent/backtest/loaders/registry.py` found
+that upstream had added `UK_EQUITY` and `AR_EQUITY`, while the plugin still
+filtered them out of `MARKET_DATA_ORDER_*`. Users could save these priorities
+in Settings without an error, but hooks silently discarded them.
+
+1. Added both markets to the hook whitelist and the matching defaults/UI help.
+2. Added regression checks for exact upstream whitelist parity, env emission
+   for the new markets, and rejection of unknown market names.
+3. Focused suite now contains 46 tests; see README for the command.
+
+## Remaining roadmap
+
+The previously listed Swarm Run Manager (#7), Shadow Account pipeline (#8),
+Research Goals board (#9), and Deep Dive pattern recognition (#10) are
+implemented in their API and WebUI surfaces. The only release-dependent item
+is the upstream package upgrade playbook: when `vibe-trading-ai` publishes a
+new release, upgrade both Agent Zero venvs, verify the registered MCP binary,
+then update the five version-lockstep sites and release-specific settings and
+page notes. Do not bump plugin version labels ahead of that upstream release.
+
+**Next item:** watch for the next upstream `vibe-trading-ai` release and run
+the two-venv upgrade/verification playbook. No other plugin-only roadmap item
+is currently open.
+
 ## Tier 6 — main-branch pre-ship (2026-09-22)
 
 **STATUS: COMPLETE (2026-09-22).** 0.1.16 was NOT released upstream — PyPI and

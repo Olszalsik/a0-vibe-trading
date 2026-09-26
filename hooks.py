@@ -218,12 +218,19 @@ def _build_mcp_entry(cfg: Dict[str, Any]) -> Dict[str, Any]:
     # Per-market data-source priority (upstream 0.1.15+). The plugin config
     # carries a JSON object mapping market -> comma-separated source order;
     # each entry becomes MARKET_DATA_ORDER_<MARKET> in the server env. Only
-    # the 13 markets upstream's env schema declares are passed through;
-    # anything else is dropped rather than sent.
+    # markets upstream's loader registry actually declares are passed
+    # through; anything else is dropped rather than sent.
+    #
+    # Keep in sync with agent/backtest/loaders/registry.py upstream:
+    #   2026-09-26  added AR_EQUITY (BYMA .BA, Yahoo then yfinance)
+    #   2026-09-09  added UK_EQUITY (LSE .L/.IL) -- this was missed at
+    #               Tier 4, so a UK source-priority override was silently
+    #               dropped until now. `test_market_order_whitelist_matches_
+    #               upstream` pins the full set.
     known_order_markets = {
-        "A_SHARE", "US_EQUITY", "HK_EQUITY", "INDIA_EQUITY", "KR_EQUITY",
-        "CA_EQUITY", "VIETNAM_EQUITY", "CRYPTO", "FUTURES", "FUND",
-        "MACRO", "FOREX", "INDEX",
+        "A_SHARE", "US_EQUITY", "HK_EQUITY", "UK_EQUITY", "INDIA_EQUITY",
+        "KR_EQUITY", "CA_EQUITY", "AR_EQUITY", "VIETNAM_EQUITY", "CRYPTO",
+        "FUTURES", "FUND", "MACRO", "FOREX", "INDEX",
     }
     order_raw = cfg.get("market_data_order_json")
     if order_raw:
