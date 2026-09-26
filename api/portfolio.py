@@ -1,13 +1,21 @@
 '''
-Vibe-Trading -- portfolio roll-up (Phase 9).
+Vibe-Trading -- portfolio roll-up (Phase 9 / Tier 4).
 
 Route: POST /api/plugins/vibe_trading/portfolio
 
-READ-ONLY. Surfaces two independent views, both opt-in:
+READ-ONLY. Surfaces five views, all opt-in:
 
-  summary   -> MCP `portfolio_summary` (present in upstream v0.1.13+).
-               Never fabricated: if the tool is not in the live server's
-               tool list we return a clear hint instead of an error dump.
+  summary   -> MCP `portfolio_summary` when the live server exposes it, else
+               the upstream CLI (`vibe-trading --no-rich portfolio show`,
+               upstream 0.1.15+). portfolio_summary is an upstream-internal
+               agent tool and is NOT on the MCP surface (probe-verified
+               through 0.1.15), so the CLI path is what actually serves the
+               page. Aggregation semantics come from upstream: a source that
+               fails to refresh is an error excluded from the totals
+               (complete=false), never a carried-forward cache.
+  refresh   -> CLI `vibe-trading portfolio refresh` (read-only broker reads),
+               then the summary cache is invalidated. Explicit user action.
+  sources   -> CLI `vibe-trading portfolio sources` (eligible connections).
   account   -> trading_account() via the shared connectors dispatch
                (same shape as the Connectors tab uses).
   positions -> trading_positions() via the shared connectors dispatch.
@@ -23,6 +31,7 @@ import asyncio
 import json
 import os
 import shutil
+import subprocess
 import sys
 from typing import Any, Dict, List
 
@@ -41,6 +50,54 @@ import vibe_trading_cache as _cache
 
 _SUMMARY_NS = 'portfolio.summary'
 _SUMMARY_TTL_SECONDS = 120.0
+
+# Upstream-CLI fallback: portfolio_summary is an upstream-internal agent tool
+# and is NOT exposed over MCP (probe-verified through 0.1.15), so the page's
+# aggregation view is served by `vibe-trading portfolio show` when present.
+_CLI_SHOW_TIMEOUT_SECONDS = 90.0
+_CLI_REFRESH_TIMEOUT_SECONDS = 240.0
+_CLI_SOURCES_TIMEOUT_SECONDS = 30.0
+
+
+def _vibe_cli_path() -> str:
+    cli = shutil.which('vibe-trading')
+    if cli:
+        return cli
+    mcp_cmd = shutil.which('vibe-trading-mcp')
+    if mcp_cmd:
+        sibling = os.path.join(os.path.dirname(mcp_cmd), 'vibe-trading')
+        if os.path.isfile(sibling):
+            return sibling
+    return ''
+
+
+def _run_cli(cli: str, args: List[str], timeout: float) -> Dict[str, Any]:
+    try:
+        proc = subprocess.run(
+            [cli, '--no-rich', *args],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        return {'ok': False, 'error': 'upstream CLI timed out after ' + str(int(timeout)) + 's'}
+    except Exception as e:
+        return {'ok': False, 'error': 'upstream CLI failed: ' + str(e)[:200]}
+    out = (proc.stdout or '').strip()
+    parsed = None
+    try:
+        parsed = json.loads(out)
+    except Exception:
+        parsed = None
+    if proc.returncode != 0 and not out:
+        return {'ok': False, 'error': ((proc.stderr or '').strip()[:300]) or ('upstream CLI exited ' + str(proc.returncode))}
+    result: Dict[str, Any] = {'ok': True, 'raw': out[:12000], 'exit_code': proc.returncode}
+    if parsed is not None:
+        result['data'] = parsed
+    stderr = (proc.stderr or '').strip()
+    if stderr:
+        result['stderr'] = stderr[:300]
+    return result
 
 
 async def _call_tool(cmd: str, name: str, arguments: Dict[str, Any], outer: float, inner: float) -> Dict[str, Any]:
@@ -105,28 +162,54 @@ class Portfolio(ApiHandler):
             if not cmd:
                 return {'success': False, 'action': action, 'error': 'vibe-trading-mcp not on PATH'}
 
-            # Check the tool exists on the live server before calling it --
-            # upstream added portfolio_summary in v0.1.13; older installs
-            # would surface a confusing raw error.
+            # MCP first: only call portfolio_summary when the live server
+            # actually exposes it (upstream may add it later; today it is
+            # registry-only, probe-verified through 0.1.15).
+            names = []
             from api.tools import _get_tools
             try:
                 tools_res = await _get_tools(force=False)
                 names = tools_res.get('tools') or []
-            except Exception as e:
-                return {'success': False, 'action': action, 'error': 'tool list probe failed: ' + str(e)[:200]}
-            if names and 'portfolio_summary' not in names:
+            except Exception:
+                names = []
+            if names and 'portfolio_summary' in names:
+                from api.dashboard import _call_tool  # bounded MCP round-trip
+                res = await _call_tool(cmd, 'portfolio_summary', {}, outer_timeout=30.0, inner_timeout=25.0)
+                if res.get('ok'):
+                    _cache.set(cache_k, {'data': res.get('data', res.get('raw')), 'source': 'mcp'}, ttl=_SUMMARY_TTL_SECONDS)
+                    return {'success': True, 'action': action, 'source': 'mcp', **res}
+
+            # Fallback: upstream CLI aggregation (0.1.15+). Read-only broker
+            # reads; a source that fails to refresh is an error excluded from
+            # the totals upstream-side (complete=false), never a smaller cache.
+            cli = _vibe_cli_path()
+            if not cli:
                 return {
                     'success': False,
                     'action': action,
-                    'error': 'portfolio_summary is not exposed by the installed vibe-trading-mcp '
-                             '(needs upstream >= 0.1.13). Re-run: pip install -U vibe-trading-ai',
+                    'error': 'portfolio aggregation needs the portfolio_summary MCP tool '
+                             '(not exposed by the installed server) or the upstream '
+                             'vibe-trading CLI (pip install -U vibe-trading-ai, 0.1.15+)',
                 }
+            cli_res = _run_cli(cli, ['portfolio', 'show'], _CLI_SHOW_TIMEOUT_SECONDS)
+            if not cli_res.get('ok'):
+                return {'success': False, 'action': action, 'source': 'cli', 'error': cli_res.get('error')}
+            _cache.set(cache_k, {'data': cli_res.get('data'), 'raw': cli_res.get('raw'), 'source': 'cli'}, ttl=_SUMMARY_TTL_SECONDS)
+            return {'success': True, 'action': action, 'source': 'cli', **cli_res}
 
-            from api.dashboard import _call_tool  # bounded MCP round-trip
-            res = await _call_tool(cmd, 'portfolio_summary', {}, outer_timeout=30.0, inner_timeout=25.0)
-            if res.get('ok'):
-                _cache.set(cache_k, {'data': res.get('data', res.get('raw'))}, ttl=_SUMMARY_TTL_SECONDS)
-                return {'success': True, 'action': action, **res}
-            return {'success': False, 'action': action, **res}
+        if action == 'refresh':
+            cli = _vibe_cli_path()
+            if not cli:
+                return {'success': False, 'action': action, 'error': 'upstream vibe-trading CLI not on PATH'}
+            cli_res = _run_cli(cli, ['portfolio', 'refresh'], _CLI_REFRESH_TIMEOUT_SECONDS)
+            _cache.invalidate(_SUMMARY_NS)
+            return {'success': bool(cli_res.get('ok')), 'action': action, **cli_res}
 
-        return {'success': False, 'error': "unknown action: " + repr(action) + " (expected: summary, account, positions)"}
+        if action == 'sources':
+            cli = _vibe_cli_path()
+            if not cli:
+                return {'success': False, 'action': action, 'error': 'upstream vibe-trading CLI not on PATH'}
+            cli_res = _run_cli(cli, ['portfolio', 'sources'], _CLI_SOURCES_TIMEOUT_SECONDS)
+            return {'success': bool(cli_res.get('ok')), 'action': action, **cli_res}
+
+        return {'success': False, 'error': "unknown action: " + repr(action) + " (expected: summary, refresh, sources, account, positions)"}

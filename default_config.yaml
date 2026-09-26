@@ -58,6 +58,40 @@ iwencai_key: ""
 data_cache: 0
 
 # ---------------------------------------------------------------------------
+# QVeris premium data track (upstream 0.1.13+, explicit-only)
+# ---------------------------------------------------------------------------
+
+# With a key set, the three key-gated qveris_* MCP tools unlock 63+ paid
+# providers (preview-by-default, session budget gate). No key = no cost, and
+# QVeris never enters the auto-fallback chain — free public data stays the
+# default. Other data modes (e.g. `vibe-trading data mode paid`) are managed
+# by the upstream CLI, not here.
+qveris_api_key: ""
+qveris_base_url: ""
+
+# ---------------------------------------------------------------------------
+# Gildata A-share source (upstream 0.1.16-pending, token-gated)
+# ---------------------------------------------------------------------------
+
+# Gildata (恒生聚源) joins the tail of the A-share fallback chain with
+# forward, split-AND-dividend adjusted daily bars (split_dividend caliber).
+# Without a token the loader reports unavailable and the chain skips it.
+gildata_token: ""
+gildata_base_url: ""
+
+# ---------------------------------------------------------------------------
+# Per-market data-source priority (upstream 0.1.15+)
+# ---------------------------------------------------------------------------
+
+# JSON object mapping market -> comma-separated source order, passed to the
+# MCP server as MARKET_DATA_ORDER_<MARKET> env vars. Example:
+#   {"FUTURES": "akshare,local", "US_EQUITY": "yfinance,stooq"}
+# Markets: A_SHARE, US_EQUITY, HK_EQUITY, INDIA_EQUITY, KR_EQUITY, CA_EQUITY,
+# VIETNAM_EQUITY, CRYPTO, FUTURES, FUND, MACRO, FOREX, INDEX. Empty = the
+# upstream default fallback chain.
+market_data_order_json: "{}"
+
+# ---------------------------------------------------------------------------
 # Risk and safety guardrails
 # ---------------------------------------------------------------------------
 

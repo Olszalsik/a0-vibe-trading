@@ -17,12 +17,18 @@ WebUI can display it. Read-only, size-capped.
 Each step is bounded by asyncio.wait_for(...). Failed steps are recorded
 in steps[].error and do not abort the chain.
 
+The run cache is keyed by the journal file's CONTENT hash (plus the window
+args), mirroring upstream's journal-hash keying: re-running after a new
+upload forces a fresh analysis instead of serving the previous diagnosis
+from the TTL cache.
+
 Single-quote string literals only.
 '''
 
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 import shutil
@@ -95,7 +101,15 @@ async def _run_loop(payload: Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(markets, str):
         markets = [m.strip() for m in markets.split(',') if m.strip()]
 
-    cache_key = (journal_path, min_support, max_rules, ','.join(markets))
+    # Key the run cache by the journal file's content hash: the same path with
+    # new contents must miss, identical contents re-uploaded under a new name may hit.
+    try:
+        with open(journal_path, 'rb') as _jf:
+            journal_sha = hashlib.sha256(_jf.read()).hexdigest()[:16]
+    except OSError:
+        journal_sha = 'unreadable'
+
+    cache_key = (journal_path, journal_sha, min_support, max_rules, ','.join(markets))
     now = time.time()
     if not bool(payload.get('force')) and _CACHE['key'] == cache_key \
             and (now - _CACHE['fetched_at']) < _CACHE_TTL_SECONDS:
@@ -213,6 +227,7 @@ async def _run_loop(payload: Dict[str, Any]) -> Dict[str, Any]:
     report = {
         'steps': steps_out,
         'shadow_id': shadow_id,
+        'journal_sha256_16': journal_sha,
         'report_path': report_path or None,
         'ok_count': ok_count,
         'summary': 'all 5 steps succeeded' if ok_count == len(steps_out) else str(ok_count) + '/' + str(len(steps_out)) + ' steps succeeded',

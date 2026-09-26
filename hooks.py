@@ -159,6 +159,17 @@ def _build_mcp_entry(cfg: Dict[str, Any]) -> Dict[str, Any]:
         command = raw_command
     else:
         resolved = shutil.which(raw_command)
+        if not resolved:
+            # The caller's PATH may not include the venv that pip installed
+            # into (e.g. a bare `docker exec` shell runs execute.py with only
+            # the base image PATH). Probing the well-known venv bin dirs keeps
+            # the registered entry absolute instead of clobbering a previous
+            # absolute registration with a bare name the runtime cannot spawn.
+            for venv_bin in ("/opt/venv/bin", "/usr/local/bin"):
+                candidate = os.path.join(venv_bin, raw_command)
+                if os.path.isfile(candidate):
+                    resolved = candidate
+                    break
         command = resolved if resolved else raw_command
     args = cfg.get("mcp_args") or []
     if isinstance(args, str):
@@ -198,6 +209,10 @@ def _build_mcp_entry(cfg: Dict[str, Any]) -> Dict[str, Any]:
         ("fmp_api_key", "FMP_API_KEY"),
         ("fred_api_key", "FRED_API_KEY"),
         ("iwencai_key", "VIBE_TRADING_IWENCAI_KEY"),
+        ("qveris_api_key", "QVERIS_API_KEY"),
+        ("qveris_base_url", "QVERIS_BASE_URL"),
+        ("gildata_token", "GILDATA_TOKEN"),
+        ("gildata_base_url", "GILDATA_BASE_URL"),
     ]:
         val = cfg.get(src_key)
         if val:
@@ -205,6 +220,29 @@ def _build_mcp_entry(cfg: Dict[str, Any]) -> Dict[str, Any]:
 
     if str(cfg.get("data_cache") or "") in {"1", "true", "True", "yes", "on"}:
         env["VIBE_TRADING_DATA_CACHE"] = "1"
+
+    # Per-market data-source priority (upstream 0.1.15+). The plugin config
+    # carries a JSON object mapping market -> comma-separated source order;
+    # each entry becomes MARKET_DATA_ORDER_<MARKET> in the server env. Only
+    # the 13 markets upstream's env schema declares are passed through;
+    # anything else is dropped rather than sent.
+    known_order_markets = {
+        "A_SHARE", "US_EQUITY", "HK_EQUITY", "INDIA_EQUITY", "KR_EQUITY",
+        "CA_EQUITY", "VIETNAM_EQUITY", "CRYPTO", "FUTURES", "FUND",
+        "MACRO", "FOREX", "INDEX",
+    }
+    order_raw = cfg.get("market_data_order_json")
+    if order_raw:
+        try:
+            orders = json.loads(order_raw) if isinstance(order_raw, str) else order_raw
+        except Exception:
+            orders = None
+        if isinstance(orders, dict):
+            for market, order in orders.items():
+                market_name = str(market or "").strip().upper().replace("-", "_")
+                value = str(order or "").strip()
+                if market_name in known_order_markets and value:
+                    env["MARKET_DATA_ORDER_" + market_name] = value
 
     # Risk tier is a soft policy surfaced in the agent persona, not a server
     # flag, but we stash it in env for downstream logging / connector checks.

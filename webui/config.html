@@ -55,7 +55,7 @@ A-shares via akshare/baostock/sina/eastmoney/mootdx auto-fallback.
 <h4 style="margin: 0 0 8px 0;">MCP server</h4>
 <label><input type="checkbox" x-model="config.mcp_enabled" />
 Register <code>vibe-trading-mcp</code> as an MCP server in Agent Zero</label>
-<small>Uncheck to keep the plugin files installed but stop exposing the live MCP tools to the agent (the count grows with the upstream package — 54 at v0.1.10, 74 at v0.1.14; the exact number is probed live below).</small>
+<small>Uncheck to keep the plugin files installed but stop exposing the live MCP tools to the agent (74 at upstream v0.1.15; the exact number is probed live below).</small>
 </div>
 
 <div class="settings-section">
@@ -100,7 +100,9 @@ server in a sidecar venv.</small>
 <div class="settings-section">
 <label>Model name</label>
 <input type="text" x-model="config.llm_model" placeholder="deepseek/deepseek-v4-pro" />
-<small>Free-form; use the exact model id your provider expects.</small>
+<small>Free-form; use the exact model id your provider expects. OpenAI gpt-5.6 models: upstream
+auto-retries tool calls on <code>/v1/responses</code> (reasoning models refuse function tools over
+chat completions), so no special configuration is needed.</small>
 </div>
 
 <div class="settings-section">
@@ -165,6 +167,62 @@ Free tier works for daily bars; higher tiers for fundamentals/limit-up data.</sm
 Opt-in local market-data cache</label>
 <small>Caches settled historical bars under <code>~/.vibe-trading/cache/loaders/</code> so repeated
 backtests skip the network. Disable to force a fresh fetch every run.</small>
+</div>
+
+<!-- =========================================================== -->
+<!-- QVeris premium data (explicit-only)                           -->
+<!-- =========================================================== -->
+<div class="settings-section">
+<h4 style="margin: 0 0 8px 0;">QVeris premium data <small style="opacity: 0.6;">(explicit-only, default off)</small></h4>
+<small>QVeris is upstream's paid data track: with a key set, three key-gated tools
+(<code>qveris_search</code> / <code>qveris_inspect</code> / <code>qveris_execute</code>) unlock 63+ premium
+providers with preview-by-default and a session budget gate. No key = no cost, and QVeris never
+enters the auto-fallback chain — free public data stays the default. Other data modes (e.g.
+<code>vibe-trading data mode paid</code>) are managed by the upstream CLI.</small>
+</div>
+
+<div class="settings-section">
+<label>QVERIS_API_KEY (optional)</label>
+<input type="password" x-model="config.qveris_api_key" />
+</div>
+
+<div class="settings-section">
+<label>QVERIS_BASE_URL (optional)</label>
+<input type="text" x-model="config.qveris_base_url" placeholder="https://api.qveris.example" />
+</div>
+
+<!-- =========================================================== -->
+<!-- Gildata A-share (token-gated, optional)                       -->
+<!-- =========================================================== -->
+<div class="settings-section">
+<h4 style="margin: 0 0 8px 0;">Gildata (恒生聚源) A-share <small style="opacity: 0.6;">(optional, token-gated)</small></h4>
+<small>Gildata joins the tail of the A-share fallback chain with forward, split-AND-dividend
+adjusted daily bars (<code>split_dividend</code> caliber). Without a token the loader reports
+unavailable and the chain skips it — no behavior change for existing setups.</small>
+</div>
+
+<div class="settings-section">
+<label>GILDATA_TOKEN (optional)</label>
+<input type="password" x-model="config.gildata_token" />
+</div>
+
+<div class="settings-section">
+<label>GILDATA_BASE_URL (optional)</label>
+<input type="text" x-model="config.gildata_base_url" placeholder="https://raw-api.example" />
+</div>
+
+<!-- =========================================================== -->
+<!-- Per-market data-source priority                               -->
+<!-- =========================================================== -->
+<div class="settings-section">
+<label>Per-market source priority (optional JSON)</label>
+<input type="text" x-model="config.market_data_order_json" placeholder='{"FUTURES": "akshare,local", "US_EQUITY": "yfinance,stooq"}' />
+<small>JSON object mapping market → comma-separated source order, passed to the MCP server as
+<code>MARKET_DATA_ORDER_*</code> env vars (upstream 0.1.15+). Markets: <code>A_SHARE, US_EQUITY, HK_EQUITY,
+INDIA_EQUITY, KR_EQUITY, CA_EQUITY, VIETNAM_EQUITY, CRYPTO, FUTURES, FUND, MACRO, FOREX, INDEX</code>.
+Empty = the upstream default fallback chain. Migration note (Gildata): an <code>A_SHARE</code> order
+saved before <code>gildata</code> joined the chain is a permutation of the old 7-source chain and stops
+validating — re-save it including <code>gildata</code>, or clear the field to fall back to the default order.</small>
 </div>
 
 <!-- =========================================================== -->

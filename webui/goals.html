@@ -58,7 +58,15 @@
   <div class="vt-card">
     <header class="vt-zoo-header">
       <h3>Goals</h3>
-      <button class="vt-btn vt-btn-ghost vt-btn-small" @click="loadAll()" :disabled="loading">&circ; Refresh</button>
+      <div style="display: flex; gap: 6px; align-items: center;">
+        <button class="vt-btn vt-btn-ghost vt-btn-small" @click="loadAll()" :disabled="loading">&circ; Refresh</button>
+        <button class="vt-btn vt-btn-text vt-btn-small" @click="exportGoals()"
+                title="Download goals + remembered ids as JSON">Export</button>
+        <button class="vt-btn vt-btn-text vt-btn-small" @click="$refs.goalImport.click()"
+                title="Re-link this browser to existing upstream goals from an export">Import</button>
+        <input type="file" accept="application/json,.json" x-ref="goalImport" style="display: none"
+               @change="importGoals($event)" />
+      </div>
     </header>
     <p class="vt-meta" x-show="!loading && !goals.length">No goals yet — create one above.</p>
 
@@ -184,6 +192,59 @@ function goalsPage() {
       try { ids = JSON.parse(localStorage.getItem('vibe_trading_ui.goals.ids') || '[]') || []; } catch (e) { ids = []; }
       if (ids.indexOf(id) === -1) { ids.push(id); }
       try { localStorage.setItem('vibe_trading_ui.goals.ids', JSON.stringify(ids)); } catch (e) {}
+    },
+    rememberedIds: function() {
+      try { return JSON.parse(localStorage.getItem('vibe_trading_ui.goals.ids') || '[]') || []; } catch (e) { return []; }
+    },
+    exportGoals: function() {
+      var ids = this.rememberedIds();
+      var payload = {
+        plugin: 'vibe_trading',
+        kind: 'research_goals',
+        exported_at: new Date().toISOString(),
+        remembered_ids: ids,
+        goals: this.goals,
+      };
+      var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'vibe_trading_goals_' + new Date().toISOString().slice(0, 10) + '.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function() { URL.revokeObjectURL(a.href); }, 2000);
+      this.statusMessage = 'Exported ' + this.goals.length + ' loaded goal(s), ' + ids.length + ' remembered id(s).';
+    },
+    importGoals: function(event) {
+      var self = this;
+      var file = event.target.files && event.target.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function() {
+        var ids = self.rememberedIds();
+        var added = 0;
+        try {
+          var data = JSON.parse(String(reader.result || '{}'));
+          if (!data || typeof data !== 'object') throw new Error('unexpected shape');
+          var incoming = Array.isArray(data.remembered_ids) ? data.remembered_ids.map(String) : [];
+          if (Array.isArray(data.goals)) {
+            data.goals.forEach(function(g) {
+              var id = self.goalId(g);
+              if (id && id !== '?') incoming.push(id);
+            });
+          }
+          incoming.forEach(function(id) {
+            if (id && id !== '?' && ids.indexOf(id) === -1) { ids.push(id); added++; }
+          });
+          try { localStorage.setItem('vibe_trading_ui.goals.ids', JSON.stringify(ids)); } catch (e) {}
+          self.statusMessage = 'Imported: ' + added + ' new goal id(s), ' + ids.length + ' remembered total.';
+          self.loadAll();
+        } catch (e) {
+          self.statusMessage = 'Import failed: not a valid goals export (' + e.message + ').';
+        }
+      };
+      reader.readAsText(file);
+      event.target.value = '';
     },
     startGoal: function() {
       var self = this;

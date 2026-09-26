@@ -33,12 +33,12 @@ Promise.all([
 ]).then(([s,t]) => { stats = s; tools = (t.tools || []); }).catch(() => {});
 ">
 
-<h1>Vibe-Trading <span class="vt-tag">v0.1.14</span></h1>
+<h1>Vibe-Trading <span class="vt-tag">v0.1.15</span></h1>
 <p style="opacity: 0.7; font-size: 12px; margin: 0;">
 Agent Zero plugin wrapping
 <a href="https://github.com/HKUDS/Vibe-Trading" target="_blank" rel="noopener">HKUDS/Vibe-Trading</a>
-— multi-agent LLM finance research with backtesting, factor analysis, options pricing, 18 market data
-sources, 88 finance skills, 452 alphas, 30 swarm teams, and the Shadow Account loop.
+— multi-agent LLM finance research with backtesting, factor analysis, options pricing, 27 market data
+sources, 90 finance skills, 462 alphas, 30 swarm teams, and the Shadow Account loop.
 </p>
 
 <!-- =========================================================== -->
@@ -66,13 +66,13 @@ x-text="stats?.mcp_registered_in_settings ? 'yes' : 'no'"></span></div>
 <div class="vt-grid">
 
 <div class="vt-card">
-<strong>Backtest (7 engines)</strong>
-<span>ChinaA · GlobalEquity · Crypto · ChinaFutures · GlobalFutures · Forex + options portfolio. Auto-fallback across 18 data sources (yfinance, OKX, akshare, baostock, tencent, sina, eastmoney, mootdx, futu, tushare, finnhub, alphavantage, tiingo, fmp, local CSV/Parquet/DuckDB, …).</span>
+<strong>Backtest (10 engines)</strong>
+<span>China A · GlobalEquity · Crypto · ChinaFutures · GlobalFutures · Forex · India · UK equity · more, plus an options portfolio. Auto-fallback across 27 data sources (yfinance, OKX, akshare, baostock, tencent, sina, eastmoney, mootdx, futu, tushare, finnhub, alphavantage, tiingo, fmp, Nobitex/Wallex, local CSV/Parquet/DuckDB, …).</span>
 </div>
 
 <div class="vt-card">
 <strong>Factor / Alpha research</strong>
-<span>IC + IR + layered backtest on the <strong>Alpha Zoo</strong>: qlib158 (154), alpha101 (101), gtja191 (191), academic (6) = 452 pre-built alphas. One-line CLI bench or programmatic via <code>ZooSignalEngine.from_zoo(...)</code>.</span>
+<span>IC + IR + layered backtest on the <strong>Alpha Zoo</strong>: qlib158, alpha101, gtja191, academic = 462 pre-built alphas. One-line CLI bench or programmatic via <code>ZooSignalEngine.from_zoo(...)</code>.</span>
 </div>
 
 <div class="vt-card">
@@ -116,7 +116,7 @@ plugin's <code>execute.py</code> from a terminal for a full health check.
 <!-- =========================================================== -->
 <h2>Recommended research workflow</h2>
 <ol style="font-size: 13px; padding-left: 20px;">
-<li>Call <code>list_skills</code> to enumerate the 88 finance knowledge skills, then <code>load_skill("&lt;name&gt;")</code> for any technique-heavy question.</li>
+<li>Call <code>list_skills</code> to enumerate the 90 finance knowledge skills, then <code>load_skill("&lt;name&gt;")</code> for any technique-heavy question.</li>
 <li>Frame the user's prompt as a research goal with <code>start_research_goal</code>, attach evidence with <code>add_goal_evidence</code> as you go.</li>
 <li>Pull data with <code>get_market_data</code>, <code>get_fund_flow</code>, <code>get_dragon_tiger</code>, <code>get_northbound_flow</code>, <code>get_sec_filings</code>, <code>get_financial_statements</code>, <code>screen_market</code>, <code>web_search</code>, etc.</li>
 <li>Analyse with <code>backtest</code>, <code>factor_analysis</code>, <code>analyze_options</code>, <code>pattern_recognition</code>, <code>analyze_trade_journal</code>.</li>

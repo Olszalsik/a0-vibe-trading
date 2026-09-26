@@ -2,7 +2,7 @@
 
 This document is the end-user manual for the Vibe-Trading Agent Zero plugin. It covers quick-start, usage patterns, keyboard shortcuts, settings, troubleshooting, and safety.
 
-**Plugin version:** 0.1.10 (Phase 9 complete; version follows the upstream `vibe-trading-ai` package via hooks auto-sync — all three version files stay in lockstep). See `README.md` for the capability matrix, install instructions, and file index.
+**Plugin version:** 0.1.15 (Tier 4 complete; version follows the upstream `vibe-trading-ai` package via hooks auto-sync — the five static version sites stay in lockstep, enforced by `scripts/check_v22_contract.py`). See `README.md` for the capability matrix, install instructions, and file index.
 
 ## Table of contents
 
@@ -35,7 +35,7 @@ Open one of these in your browser:
 |-----|---------|
 | `/usr/plugins/vibe_trading/webui/dashboard.html` | 8-tab research console |
 | `/usr/plugins/vibe_trading/webui/deepdive.html` | Single-symbol aggregator |
-| `/usr/plugins/vibe_trading/webui/skills.html` | 79-skill browser |
+| `/usr/plugins/vibe_trading/webui/skills.html` | 90-skill browser |
 | `/usr/plugins/vibe_trading/webui/risk.html` | Risk-tier guard + connector reads |
 | `/usr/plugins/vibe_trading/webui/journal.html` | Trade journal, CSV upload, tier-transition audit log |
 | `/usr/plugins/vibe_trading/webui/main.html` | Live tool list + status |
@@ -49,17 +49,17 @@ Verify the install:
 cd /a0/usr/plugins/vibe_trading && python3 execute.py
 ```
 
-Expected tail at v0.5.1:
+Expected tail at v0.1.15:
 
 ```json
 {
   "plugin": "vibe_trading",
-  "version": "0.5.1",
+  "version": "0.1.15",
   "v22_contract_ok": true,
   "files_ok": true,
   "manifest_ok": true,
   "hooks_install_result": {"ok": true, "mcp_enabled": true, "registered": true},
-  "mcp_probe": {"tool_count": 54}
+  "mcp_probe": {"tool_count": 74}
 }
 ```
 
@@ -71,7 +71,7 @@ Three access methods. Pick whichever fits the moment.
 
 ### Method 1 — Chat with the `vibe-trader` agent
 
-Select the `vibe-trader` profile from the **Agent profile** dropdown in any chat. The agent already has the full Vibe-Trading research playbook baked in — including the Shadow Account loop, the 30 swarm presets, the 452 alpha formulas, and the read-only safety guardrails.
+Select the `vibe-trader` profile from the **Agent profile** dropdown in any chat. The agent already has the full Vibe-Trading research playbook baked in — including the Shadow Account loop, the 30 swarm presets, the 462 alpha formulas, and the read-only safety guardrails.
 
 Example prompts:
 
@@ -91,12 +91,12 @@ The dashboard has 8 tabs:
 | Tab | Purpose |
 |-----|---------|
 | **Overview** | Health snapshot: install state, MCP probe, recent research goals, recent swarm runs |
-| **Markets** | Live quotes across 13 data loaders (yfinance, akshare, OKX, tencent, baostock, tushare, finnhub, alphavantage, fmp, fred, eastmoney, mootdx, ccxt) |
+| **Markets** | Live quotes across upstream's 27 data sources (yfinance, akshare, OKX, tencent, baostock, tushare, finnhub, alphavantage, fmp, fred, eastmoney, mootdx, ccxt, Nobitex/Wallex, …) |
 | **Backtest** | Run a backtest via `run_dir` |
 | **Shadow** | 5-step Shadow Account loop — analyse journal, extract rules, backtest, render report, scan signals |
-| **Alphas** | Browse 452 alphas (qlib158, alpha101, gtja191, academic), benchmark a sample set |
+| **Alphas** | Browse 462 alphas (qlib158, alpha101, gtja191, academic, fundamental), benchmark a sample set |
 | **Swarm** | List 30 multi-agent team presets, start a run, poll status |
-| **Connectors** | Read-only views into opt-in broker connectors (IBKR / Futu / Robinhood / Trading 212) |
+| **Connectors** | Read-only views into opt-in broker connectors (14 at upstream 0.1.15 — IBKR / Futu / Robinhood / Trading 212 / MetaTrader 5 / Alpaca / eToro / Longbridge / Dhan / Shoonya / Zerodha Kite / …) |
 | **Settings** | UI preferences, keyboard shortcut help, plugin settings link |
 
 ### Method 3 — REST API (programmatic)
@@ -113,7 +113,7 @@ curl -X POST http://localhost:50001/api/plugins/vibe_trading/dashboard \
   -H 'Content-Type: application/json' \
   -d '{"action": "quote", "ticker": "AAPL.US", "source": "yfinance"}'
 
-# List 88 finance skills
+# List 90 finance skills
 curl -X POST http://localhost:50001/api/plugins/vibe_trading/skills \
   -H 'Content-Type: application/json' -d '{"action": "list"}'
 
@@ -126,7 +126,7 @@ curl -X POST http://localhost:50001/api/plugins/vibe_trading/swarms \
   -H 'Content-Type: application/json' -d '{"action": "list_presets"}'
 ```
 
-Full endpoint list (12 handlers):
+Full endpoint list (17 handlers):
 
 | Handler | Actions |
 |---------|---------|
@@ -141,6 +141,12 @@ Full endpoint list (12 handlers):
 | `connectors` | `list`, `select`, `account`, `positions`, `orders`, `quote`, `history` |
 | `deep_dive` | `fetch` (with `symbol`, optional `force`) |
 | `skills` | `list`, `load` (with `name`) |
+| `research_goals` | `start`, `get`, `add_evidence`, `update_status` |
+| `watch` | `list`, `add`, `remove`, `check` (price alerts) |
+| `portfolio` | `summary` (MCP tool when exposed, upstream-CLI aggregation fallback), `refresh`, `sources`, `account`, `positions` |
+| `risk_guard` | risk-tier gate + connector reads |
+| `journal` | KPIs/behaviours, tier-transition audit log |
+| `journal_upload` | `upload`, `list`, `remove` |
 
 ---
 
@@ -215,6 +221,8 @@ The Journal page combines three features:
 
 **Safety:** the journal is read/append-only. Uploads are validated (extension, size, base64 integrity, CSV parse) and never executed; the audit log can only be appended to, never edited from the UI.
 
+**Shadow cache keying (Tier 4):** the 5-step shadow run cache is keyed by the journal file's content hash (plus the window args) — re-uploading a changed CSV forces a fresh analysis instead of serving the previous diagnosis from the TTL cache.
+
 ## Settings reference
 
 All settings live in `default_config.yaml` (lowest priority). Override from **Settings → Developer / External / MCP** in the WebUI; the override persists to `usr/plugins/vibe_trading/config.json` and re-pushes into Agent Zero's `mcp_servers` setting on Save.
@@ -235,6 +243,9 @@ All settings live in `default_config.yaml` (lowest priority). Override from **Se
 | `fmp_api_key` | `""` | Optional US fallback |
 | `fred_api_key` | `""` | Macro series |
 | `iwencai_key` | `""` | A-share NL research |
+| `qveris_api_key` | `""` | Opt-in QVeris premium-data key (explicit-only; no key = no cost) |
+| `qveris_base_url` | `""` | Optional QVeris endpoint override |
+| `market_data_order_json` | `"{}"` | Per-market source order → `MARKET_DATA_ORDER_*` env (0.1.15+) |
 | `data_cache` | `0` | Opt-in local OHLCV cache |
 | `risk_tier` | `research` | `research` \| `paper` \| `live` |
 | `max_drawdown_pct` | `20` | Soft cap surfaced to the agent |
@@ -264,6 +275,7 @@ The plugin uses two cache layers:
 | `alphazoo.bench` | 24 h | `alphazoo.bench|<sha256(...)[:16]>` | n/a |
 | `swarms.list_presets` | 60 s | `swarms.list_presets` | n/a |
 | `swarms.list_runs` | 30 s | `swarms.list_runs|<limit>` | n/a |
+| `portfolio.summary` | 120 s | `portfolio.summary` | `force: true` |
 
 ### 2. Client-side localStorage (via `webui/shared.js`)
 
@@ -330,5 +342,6 @@ For live execution outside this plugin, the upstream Vibe-Trading CLI supports o
 | Phase 7 — trade journal + tier-transition audit log | ✅ Live |
 | Phase 8 — manual journal CSV upload (5 MB, validated) | ✅ Live |
 | Phase 9 — auto-load newest upload on read (`auto_load_uploads`) | ✅ Live |
+| Phase 10 — Tier 4: upstream 0.1.15 upgrade, version-lockstep automation, portfolio CLI aggregation, shadow cache hash-keying, QVeris + source-priority settings, docs drift sweep | ✅ Live |
 
 Phase 6 is opt-in: it adds a risk-tier gate and broker connector detection for users who explicitly want to leave `risk_tier: research`. The default `research` tier keeps the plugin read-only. No order-placement tool exists anywhere in the plugin; live promotion requires an explicit config/env change plus an Agent Zero restart, and is recorded in the audit log.

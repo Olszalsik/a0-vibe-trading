@@ -65,7 +65,7 @@ def _bench_cache_key(payload: Dict[str, Any]) -> str:
 
 
 _MANIFEST = {
-    'total_alphas': 452,
+    'total_alphas': 462,
     'zoos': [
         {
             'id': 'qlib158',
@@ -94,10 +94,20 @@ _MANIFEST = {
         {
             'id': 'academic',
             'name': 'Academic',
-            'count': 6,
-            'origin': 'Fama-French 5 + Carhart momentum',
+            'count': 12,
+            'origin': 'Fama-French 5 + Carhart momentum plus published anomalies '
+                      '(betting-against-beta, 52-week-high, correlation stability, …)',
             'sample_factors': ['Mkt-RF', 'SMB', 'HML', 'RMW', 'CMA', 'UMD'],
             'tags': ['academic', 'factor_research', 'baseline'],
+        },
+        {
+            'id': 'fundamental',
+            'name': 'Fundamental (value / quality)',
+            'count': 4,
+            'origin': 'Classic value & quality screens: gross profitability, '
+                      'earnings yield, ROE, asset growth',
+            'sample_factors': ['gross_profitability', 'earnings_yield', 'roe', 'asset_growth'],
+            'tags': ['fundamental', 'value', 'quality'],
         },
     ],
 }

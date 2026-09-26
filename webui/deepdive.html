@@ -114,7 +114,7 @@
  <span class="badge" x-text="status"></span>
  </h1>
  <div class="row">
- <input type="text" x-model="symbol" @keydown.enter="fetch()" placeholder="Symbol (e.g. AAPL.US, 600519.SH, 0700.HK)">
+ <input type="text" x-model="symbol" @keydown.enter="fetch()" placeholder="Symbol (e.g. AAPL.US, 600519.SH, 0700.HK, HSBA.L, RB0)">
  <button @click="fetch(true)" :disabled="loading">Refresh</button>
  <a href="/usr/plugins/vibe_trading/webui/dashboard.html" style="color: var(--vt-accent); align-self: center; font-size: 12px;">&larr; Dashboard</a>
  </div>

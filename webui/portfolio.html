@@ -1,6 +1,8 @@
 <!-- Vibe-Trading -- read-only portfolio roll-up.
      account / positions come via the shared connectors dispatch (opt-in);
-     summary uses the upstream portfolio_summary MCP tool v0.1.13+. -->
+     summary prefers the portfolio_summary MCP tool and falls back to the
+     upstream CLI aggregation (0.1.15+; portfolio_summary is upstream-internal,
+     not MCP-exposed). -->
 <!doctype html>
 <!-- Standalone wrapper: served RAW by ui_server (no injected scripts), so
      this page must load its own CSS and Alpine. See dashboard.html header. -->
@@ -58,20 +60,28 @@
 
   <section class="vt-card">
     <header class="vt-zoo-header">
-      <h3>Upstream portfolio summary</h3>
+      <h3>Upstream portfolio summary <span class="vt-pill" x-show="summarySource" x-text="summarySource"></span></h3>
       <button class="vt-btn vt-btn-ghost vt-btn-small" @click="load('summary', true)" :disabled="loadingSummary">↻</button>
     </header>
     <div class="vt-empty" x-show="!summary && !summaryUnimplemented">
-      Press <em>Refresh summary</em> to pull <code>portfolio_summary</code>. Needs upstream v0.1.13+.
+      Press <em>Refresh summary</em>. Uses <code>portfolio_summary</code> over MCP when the server
+      exposes it; otherwise the upstream CLI aggregation (<code>vibe-trading portfolio show</code>, 0.1.15+).
     </div>
     <div class="vt-empty" x-show="summaryUnimplemented">
-      <code>portfolio_summary</code> is not exposed by the installed <code>vibe-trading-mcp</code>.
-      Update the package: <code>pip install -U vibe-trading-ai</code>.
+      Neither the <code>portfolio_summary</code> MCP tool nor the upstream <code>vibe-trading</code> CLI is
+      available. Update the package: <code>pip install -U vibe-trading-ai</code> (0.1.15+).
     </div>
-    <pre x-show="summary" x-text="JSON.stringify(summary, null, 2)"></pre>
-    <button class="vt-btn vt-btn-primary vt-btn-small" @click="load('summary', true)" :disabled="loadingSummary">
-      <span x-show="!loadingSummary">Refresh summary</span><span x-show="loadingSummary">Loading...</span>
-    </button>
+    <pre x-show="summary" x-text="typeof summary === 'string' ? summary : JSON.stringify(summary, null, 2)"></pre>
+    <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+      <button class="vt-btn vt-btn-primary vt-btn-small" @click="load('summary', true)" :disabled="loadingSummary">
+        <span x-show="!loadingSummary">Refresh summary</span><span x-show="loadingSummary">Loading...</span>
+      </button>
+      <button class="vt-btn vt-btn-small" @click="load('refresh')" :disabled="loadingRefresh" title="Read-only broker reads via the upstream CLI; re-aggregates every selected source">
+        <span x-show="!loadingRefresh">Refresh snapshot</span><span x-show="loadingRefresh">Refreshing...</span>
+      </button>
+      <button class="vt-btn vt-btn-text vt-btn-small" @click="load('sources')" :disabled="loadingSources">sources</button>
+    </div>
+    <pre x-show="sources" x-text="typeof sources === 'string' ? sources : JSON.stringify(sources, null, 2)"></pre>
   </section>
 
   <section class="vt-card" x-show="editingConnection">
@@ -92,7 +102,11 @@ function portfolioPage() {
     account: null,
     positions: null,
     summary: null,
+    summarySource: '',
     summaryUnimplemented: 0,
+    sources: null,
+    loadingRefresh: 0,
+    loadingSources: 0,
     accountCached: 0,
     statusMessage: '',
     loadingAccount: 0,
@@ -140,6 +154,20 @@ function portfolioPage() {
           if (res && res.success) { self.positions = res.data || res.raw || res; }
           else { self.statusMessage = 'Positions failed: ' + ((res && res.error) || 'unknown'); }
         });
+      } else if (what === 'refresh') {
+        this.loadingRefresh = 1;
+        this.callApi('portfolio', { action: 'refresh' }).then(function(res){
+          self.loadingRefresh = 0;
+          if (res && res.success) { self.load('summary', true); }
+          else { self.statusMessage = 'Snapshot refresh failed: ' + ((res && res.error) || 'unknown'); }
+        });
+      } else if (what === 'sources') {
+        this.loadingSources = 1;
+        this.callApi('portfolio', { action: 'sources' }).then(function(res){
+          self.loadingSources = 0;
+          if (res && res.success) { self.sources = res.data || res.raw || res; }
+          else { self.statusMessage = 'Sources failed: ' + ((res && res.error) || 'unknown'); }
+        });
       } else {
         this.loadingSummary = 1;
         var payload = { action: 'summary' };
@@ -147,11 +175,15 @@ function portfolioPage() {
         this.callApi('portfolio', payload).then(function(res){
           self.loadingSummary = 0;
           self.summaryUnimplemented = 0;
-          if (res && res.success) { self.summary = res.data || res.raw || res; }
+          if (res && res.success) {
+            self.summarySource = res.source || '';
+            self.summary = res.data || res.raw || res;
+          }
           else {
             self.summary = null;
+            self.summarySource = '';
             var err = (res && res.error) || 'unknown';
-            if (String(err).indexOf('not exposed') !== -1) { self.summaryUnimplemented = 1; }
+            if (String(err).indexOf('needs the portfolio_summary MCP tool') !== -1) { self.summaryUnimplemented = 1; }
             else { self.statusMessage = 'Summary failed: ' + err; }
           }
         });

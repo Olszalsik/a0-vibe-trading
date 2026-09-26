@@ -2,7 +2,7 @@
 
 Brings the [HKUDS/Vibe-Trading](https://github.com/HKUDS/Vibe-Trading) finance-research workspace into [Agent Zero](https://github.com/agent0ai/agent-zero) as a first-class plugin.
 
-* **MCP server** — registers `vibe-trading-mcp` with Agent Zero's MCP client, exposing the upstream's research-only tools (74 at upstream v0.1.14; probed live at runtime) (`backtest`, `factor_analysis`, `analyze_options`, `get_market_data`, `run_swarm`, `analyze_trade_journal`, `extract_shadow_strategy`, `scan_shadow_signals`, `web_search`, `read_document`, etc.) to every agent profile.
+* **MCP server** — registers `vibe-trading-mcp` with Agent Zero's MCP client, exposing the upstream's research-only tools (74 at upstream v0.1.15; probed live at runtime) (`backtest`, `factor_analysis`, `analyze_options`, `get_market_data`, `run_swarm`, `analyze_trade_journal`, `extract_shadow_strategy`, `scan_shadow_signals`, `web_search`, `read_document`, etc.) to every agent profile.
 * **Agent profile** — ships a dedicated `vibe-trader` persona with the full research workflow, Shadow Account loop, Alpha Zoo cheatsheet, and hard safety guardrails.
 * **Settings UI** — surfaces MCP toggle, LLM provider, data-source keys, risk tier, and drawdown cap inside the Agent Zero Plugins settings page, with one-click Save → re-sync.
 * **Dashboard** — 8-tab research console with overview, markets, backtest, shadow, alphas, swarm, connectors, settings. Plus standalone Deep Dive, Skills, Market Watch (price alerts), Portfolio, Risk Guard (risk-tier gate + connector reads) and Journal pages (KPIs/behaviours, broker CSV upload, tier-transition audit log with auto-load of the newest upload).
@@ -15,17 +15,17 @@ Brings the [HKUDS/Vibe-Trading](https://github.com/HKUDS/Vibe-Trading) finance-r
 
 | Capability | Tools | Notes |
 |---|---|---|
-| **Backtest** (7 engines) | `backtest` | ChinaA · GlobalEquity · Crypto · ChinaFutures · GlobalFutures · Forex + options portfolio |
-| **Factor / Alpha** | `factor_analysis` + 452 alphas | qlib158, alpha101, gtja191, academic — IC/IR/alive-reversed-dead one-line CLI bench |
+| **Backtest** (10 engines) | `backtest` | China A · GlobalEquity · Crypto · ChinaFutures · GlobalFutures · Forex · India · UK · more + options portfolio |
+| **Factor / Alpha** | `factor_analysis` + 462 alphas | qlib158, alpha101, gtja191, academic, fundamental — IC/IR/alive-reversed-dead one-line CLI bench |
 | **Multi-agent swarms** (30) | `list_swarm_presets`, `run_swarm`, `get_swarm_status`, `get_run_result` | Investment Committee, Global Equities Desk, Crypto Trading Desk, Earnings Research, Macro/Rates/FX, Quant Strategy, Risk Committee |
-| **Market data** (18 sources) | `get_market_data` + 10 read-only tool family | yfinance, stooq, yahoo, OKX, akshare, baostock, tencent, sina, eastmoney, mootdx, futu, tushare, finnhub, alphavantage, tiingo, fmp, local CSV/Parquet/DuckDB |
+| **Market data** (27 sources) | `get_market_data` + 10 read-only tool family | yfinance, stooq, yahoo, OKX, akshare, baostock, tencent, sina, eastmoney, mootdx, futu, tushare, finnhub, alphavantage, tiingo, fmp, Nobitex/Wallex (Iran crypto), local CSV/Parquet/DuckDB |
 | **Fundamentals & flow** | `get_fund_flow`, `get_dragon_tiger`, `get_northbound_flow`, `get_margin_trading`, `get_block_trades`, `get_sec_filings`, `get_financial_statements`, `get_stock_profile`, `get_options_chain`, `get_stock_news` | A-share + US + HK + crypto |
 | **Options & patterns** | `analyze_options`, `get_options_chain`, `pattern_recognition` | Black-Scholes + Greeks, H&S / double-top / triangle / flag |
 | **Research goals** | `start_research_goal`, `get_research_goal`, `add_goal_evidence`, `update_research_goal_status` | Auditable lifecycle per research question |
 | **Shadow Account** | `analyze_trade_journal`, `extract_shadow_strategy`, `run_shadow_backtest`, `render_shadow_report`, `scan_shadow_signals` | Behavioural diagnostics + 3-5 distilled if-then rules + delta-PnL |
 | **Macro & search** | `get_macro_series`, `iwencai_search`, `web_search`, `read_url`, `read_document` | FRED, iWenCai NL, DuckDuckGo, PDF/DOCX/XLSX/PPTX/image OCR |
 | **Trading connector reads** | `trading_account`, `trading_positions`, `trading_orders`, `trading_quote`, `trading_history`, `trading_connections`, `trading_select_connection`, `trading_check` | Read-only; opt-in connector profiles (IBKR local TWS/Gateway, Robinhood MCP OAuth, Futu, Trading 212) — **no order placement via MCP** |
-| **Skills knowledge base** (88 at upstream v0.1.14) | `list_skills`, `load_skill` | Candlestick, Elliott wave, Ichimoku, SMC, harmonic, chanlun, factor research, ML strategy, pair trading, VaR/CVaR, hedging, SEC filings, crypto trading desk, behavioural finance, … |
+| **Skills knowledge base** (90 at upstream v0.1.15) | `list_skills`, `load_skill` | Candlestick, Elliott wave, Ichimoku, SMC, harmonic, chanlun, factor research, ML strategy, pair trading, VaR/CVaR, hedging, SEC filings, crypto trading desk, behavioural finance, … |
 
 ## Install
 
@@ -47,7 +47,7 @@ The plugin ships **3 ways** to interact with the upstream research workspace. Pi
 
 ### 1. Chat with the `vibe-trader` agent (quickest)
 
-Select the `vibe-trader` profile from the **Agent profile** dropdown in any chat. The agent already has the full Vibe-Trading research playbook baked in — including the Shadow Account loop, the 30 swarm presets, the 452 alpha formulas, and the read-only safety guardrails.
+Select the `vibe-trader` profile from the **Agent profile** dropdown in any chat. The agent already has the full Vibe-Trading research playbook baked in — including the Shadow Account loop, the 30 swarm presets, the 462 alpha formulas, and the read-only safety guardrails.
 
 Just ask, for example:
 
@@ -72,10 +72,10 @@ config page links every page). Eight tabs:
 | Tab | Purpose | Best for |
 |-----|---------|----------|
 | **Overview** | Health snapshot: install state, MCP probe, recent research goals, recent swarm runs | Daily check that everything's alive |
-| **Markets** | Live quotes for any symbol across 13 data loaders (yfinance, akshare, OKX, tencent, baostock, tushare, finnhub, alphavantage, fmp, fred, eastmoney, mootdx, ccxt) | "What's AAPL at right now?" |
+| **Markets** | Live quotes for any symbol across upstream's 27 data sources (yfinance, akshare, OKX, tencent, baostock, tushare, finnhub, alphavantage, fmp, fred, eastmoney, mootdx, ccxt) | "What's AAPL at right now?" |
 | **Backtest** | Run a backtest via `run_dir` (the upstream-configured backtest directory) | Re-running existing configs |
 | **Shadow** | 5-step Shadow Account loop — analyse journal, extract rules, backtest, render report, scan signals | Trading behaviour diagnostics |
-| **Alphas** | Browse 452 alphas (qlib158, alpha101, gtja191, academic), benchmark a sample set | Factor library exploration |
+| **Alphas** | Browse 462 alphas (qlib158, alpha101, gtja191, academic, fundamental), benchmark a sample set | Factor library exploration |
 | **Swarm** | List 30 multi-agent team presets, start a run, poll status | Investment committee / quant desk workflows |
 | **Connectors** | Read-only views into opt-in broker connectors (IBKR / Futu / Robinhood / Trading 212) | "What's my account look like?" |
 | **Settings** | UI preferences, keyboard shortcut help, plugin settings link | Theme + shortcut reference |
@@ -204,21 +204,21 @@ These persist across reloads via `localStorage` under the `vibe_trading_ui.` pre
 python /a0/usr/plugins/vibe_trading/execute.py
 ```
 
-Expected tail at v0.5.1:
+Expected tail at v0.1.15:
 
 ```json
 {
   "plugin": "vibe_trading",
-  "version": "0.5.1",
+  "version": "0.1.15",
   "toggle_state": "ON",
   "v22_contract_ok": true,
   "files_ok": true,
   "manifest_ok": true,
   "install": {"vibe_trading_ai_installed": true, "console_script": true, ...},
   "hooks_install_result": {"ok": true, "mcp_enabled": true, "registered": true, ...},
-  "mcp_probe": {"probed": true, "tool_count": 54, ...}
+  "mcp_probe": {"probed": true, "tool_count": 74, ...}
 }
-[vibe_trading] Health check PASSED — 54 tools live.
+[vibe_trading] Health check PASSED — 74 tools live.
 ```
 
 A `PARTIAL` health check with `mcp_probe.error = "unhandled errors in a TaskGroup (1 sub-exception)"` is a known stdio-transport flake from `execute.py`'s inline probe and does not affect runtime — the plugin's own install path still reports `registered: true` and the tools remain reachable through `api/tools.py`.
@@ -243,6 +243,11 @@ All settings live in `default_config.yaml` (lowest priority). The user can overr
 | `fmp_api_key` | `""` | Optional US fallback |
 | `fred_api_key` | `""` | Macro series |
 | `iwencai_key` | `""` | A-share NL research |
+| `qveris_api_key` | `""` | Opt-in QVeris premium-data key (explicit-only; no key = no cost) |
+| `qveris_base_url` | `""` | Optional QVeris endpoint override |
+| `gildata_token` | `""` | Gildata A-share token (tail of A-share chain; absent = skipped) |
+| `gildata_base_url` | `""` | Optional Gildata endpoint override |
+| `market_data_order_json` | `"{}"` | Per-market source order → `MARKET_DATA_ORDER_*` env (0.1.15+) |
 | `data_cache` | `0` | Opt-in local OHLCV cache |
 | `risk_tier` | `research` | `research` \| `paper` \| `live` |
 | `max_drawdown_pct` | `20` | Soft cap surfaced to the agent |
@@ -250,7 +255,7 @@ All settings live in `default_config.yaml` (lowest priority). The user can overr
 
 ## Safety
 
-Vibe-Trading is research-only by design: the MCP server **exposes zero order-placement tools**. The `trading_*` tools are read-only (`trading_account`, `trading_positions`, `trading_orders`, `trading_quote`, `trading_history`). For live execution, the upstream Vibe-Trading CLI supports opt-in connector profiles (IBKR local TWS/Gateway, Robinhood MCP OAuth, Futu, Trading 212) — using them is at the user's own risk and is out of scope for this plugin.
+Vibe-Trading is research-only by design: the MCP server **exposes zero order-placement tools**. The `trading_*` tools are read-only (`trading_account`, `trading_positions`, `trading_orders`, `trading_quote`, `trading_history`). For live execution, the upstream Vibe-Trading CLI supports opt-in connector profiles (14 connectors at upstream 0.1.15 — IBKR, Robinhood, Futu, Trading 212, MetaTrader 5, Alpaca, eToro, Longbridge, Dhan, Shoonya, Zerodha Kite, …) — using them is at the user's own risk and is out of scope for this plugin.
 
 The `vibe-trader` agent profile enforces five hard rules:
 1. Refuse to place live orders via MCP; redirect to the user's broker.
@@ -280,7 +285,7 @@ The `vibe-trader` agent profile enforces five hard rules:
 | `api/deep_dive.py` | `POST /api/plugins/vibe_trading/deep_dive` — `fetch` (aggregates profile + financials + news + quote) |
 | `api/skills.py` | `POST /api/plugins/vibe_trading/skills` — `list` (skills, categorised), `load` |
 | `api/watch.py` | `POST /api/plugins/vibe_trading/watch` — `list`, `add`, `remove`, `check` (price-alert rules, `watch_rules.json`) |
-| `api/portfolio.py` | `POST /api/plugins/vibe_trading/portfolio` — `summary` (upstream `portfolio_summary`), `account`, `positions` |
+| `api/portfolio.py` | `POST /api/plugins/vibe_trading/portfolio` — `summary` (MCP `portfolio_summary` when exposed, upstream-CLI aggregation fallback), `refresh`, `sources`, `account`, `positions` |
 | `helpers/cache.py` | Shared thread-safe TTL cache (used by 7 read-heavy handlers) |
 | `webui/main.html` | Standalone plugin page with live tool list |
 | `webui/page.html` | Full info page with live status + tool list |
@@ -292,7 +297,7 @@ The `vibe-trader` agent profile enforces five hard rules:
 | `webui/skills.html` | Skills browser |
 | `webui/watch.html` | Market Watch — price alerts (v0.2.0) |
 | `webui/portfolio.html` | Portfolio roll-up (v0.2.0) |
-| `webui/alphazoo.html` | Alpha zoo browser (452 alphas across 4 zoos) |
+| `webui/alphazoo.html` | Alpha zoo browser (462 alphas across 5 zoos) |
 | `webui/swarms.html` | Swarm preset browser + run manager |
 | `webui/shadow.html` | Shadow Account launcher + journal upload |
 | `webui/shared.js` | Shared UI namespace: `window.VibeTrading` — toast, persist, shortcuts, help, prefs |
@@ -300,7 +305,33 @@ The `vibe-trader` agent profile enforces five hard rules:
 | `extensions/python/banners/_10_vibe_trading_discovery.py` | Banner at agent start announcing live tools |
 | `extensions/webui/page-head/vibe-trading-head.html` | Theme CSS variables + meta tag for the WebUI head |
 | `extensions/webui/chat-input-bottom-actions-end/vibe-trading-btn.html` | Chat-input preset button (chart icon) with research prompt templates |
+| `tests/test_plugin_internals.py` | pytest unit tests (lockstep, contract checker, hooks env mapping, cache, source guards) |
 | `LICENSE` | MIT |
+
+## Tests & Verification
+
+**Unit tests (host venv, no A0 runtime needed):**
+
+```bash
+pytest usr/plugins/vibe_trading/tests/test_plugin_internals.py -q
+```
+
+27 tests cover: version lockstep (all five static sites + plugin.yaml),
+the contract checker on the real tree and on synthetic drift/toggle-broken
+trees, `hooks._build_mcp_entry` translation (LLM/data-source/QVeris
+passthrough, `MARKET_DATA_ORDER_*` whitelist + normalization, hard
+invariants), TTL-cache semantics, and source-contract guards for the
+runtime-only modules (shadow journal-hash keying, portfolio CLI fallback,
+QVeris default-off).
+
+**Full health check (container):**
+
+```bash
+docker exec a0-inst-agent-zero-latest-mqtnkttk sh -c \
+  'cd /a0/usr/plugins/vibe_trading && /opt/venv/bin/python execute.py'
+```
+
+Expects `Health check PASSED — 74 tools live` at upstream 0.1.15.
 
 ## License
 

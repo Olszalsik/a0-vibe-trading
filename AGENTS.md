@@ -2,25 +2,27 @@
 
 You are working on an Agent Zero plugin that wires the
 [HKUDS/Vibe-Trading](https://github.com/HKUDS/Vibe-Trading) finance-research workspace into A0 as
-a registered MCP server. The plugin exposes 54 research-only tools (backtest, factor analysis,
-options, market data, swarm, trade-journal, shadow-account, 79 finance skills, 452 alphas) and a
+a registered MCP server. The plugin exposes 74 research-only MCP tools (backtest, factor analysis,
+options, market data, swarm, trade-journal, shadow-account, 90 finance skills, 462 alphas) and a
 dedicated `vibe-trader` agent profile. Live order placement is opt-in and gated.
 
-A mistake here causes silent tool absence (MCP `init_timeout` 10s vs cold-start cost of 54 tool
+A mistake here causes silent tool absence (MCP `init_timeout` 10s vs cold-start cost of 74 tool
 modules), a broken Settings CTA on the welcome banner, an action button that does nothing when
 clicked, or the agent falling back to default profiles because the plugin's agent wasn't
 discovered. Follow these rules.
 
 ## What this plugin is
-A self-contained A0 plugin (id `vibe_trading`, version `0.1.14` — follows the
+A self-contained A0 plugin (id `vibe_trading`, version `0.1.15` — follows the
 installed upstream `vibe-trading-ai` via `version_sync` auto-sync, invariant 13):
 
 - An MCP server registration — on `install()` the plugin writes a single
   `mcpServers["vibe-trading"]` entry into `usr/settings.json` so A0's MCP client spawns the
   `vibe-trading-mcp` console script on every boot (`hooks.py:install()`).
-- Three async API handlers under `api/`: `stats` (file/installation/MCP-live snapshot),
-  `sync_mcp` (persist overrides + re-register), and `tools` (cached list of live MCP tool
-  names). Each is a class subclassing `helpers.api.ApiHandler` with `async def process(self,
+- Seventeen async API handlers under `api/`: `stats` (file/installation/MCP-live snapshot),
+  `sync_mcp` (persist overrides + re-register), `tools` (cached list of live MCP tool names),
+  `dashboard`, `loader_health`, `swarms`, `shadow`, `alphazoo`, `connectors`, `deep_dive`,
+  `skills`, `watch`, `portfolio`, `risk_guard`, `journal`, `journal_upload`, `research_goals`.
+  Each is a class subclassing `helpers.api.ApiHandler` with `async def process(self,
   input_data, request)` (`helpers/api.py:206-272` auto-dispatches the URL).
 - A dedicated agent profile at `agents/vibe-trader/agent.yaml` (research-first persona with a
   hard "no live orders" rule and explicit per-action confirmation policy).
@@ -40,7 +42,7 @@ installed upstream `vibe-trading-ai` via `version_sync` auto-sync, invariant 13)
 ## HARD INVARIANTS — never violate
 1. **`mcp_client_init_timeout` must be ≥ 30s.** A0 v2.5 (`helpers/mcp_handler.py:1402`) reads
    the timeout from settings (`mcp_client_init_timeout`, default 10). The upstream
-   `vibe-trading-mcp` is a Python stdio server that imports 54 tool modules and warms a 452-alpha
+   `vibe-trading-mcp` is a Python stdio server that imports 74 tool modules and warms a 462-alpha
    registry on startup — measured cold start is 8–25s depending on venv state and host FS
    latency. A 10s timeout produces the "McpError: Timed out while waiting for response to
    ClientRequest. Waited 10.0 seconds" warning in `a0 logs`, empties the advertised tool list,
@@ -115,14 +117,17 @@ installed upstream `vibe-trading-ai` via `version_sync` auto-sync, invariant 13)
     all. If you ever add a real enforcement layer, do it as a separate extension
     (`_20_vibe_trading_risk_guard.py`) that intercepts tool calls, not by changing the persona
     prompt.
-13. **Plugin version follows the upstream `vibe-trading-ai` package — keep the three version
-    files in lockstep.** `plugin.yaml:version` is auto-synced to the installed upstream package
-    by `version_sync.sync_plugin_version()` (runs via `hooks.py` post-install / pre_update).
-    `version_sync.py:FALLBACK` and `execute.py:EXPECTED_VERSION` must be bumped by hand to the
-    same value whenever the upstream package version changes (currently `0.1.14`). The banner's
-    `meta` dict derives from `plugin.yaml` (`hooks.py:PLUGIN_VERSION`). WebUI labels
-    (`dashboard.js versionLabel`, `page.html` h1 tag) are hardcoded — bump them in the same
-    commit. `execute.py` prints a WARN if `plugin.yaml` disagrees with `EXPECTED_VERSION`.
+13. **Plugin version follows the upstream `vibe-trading-ai` package — keep the five static
+    version sites in lockstep.** `plugin.yaml:version` is auto-synced to the installed upstream
+    package by `version_sync.sync_plugin_version()` (runs via `hooks.py` post-install /
+    pre_update). `version_sync.py:FALLBACK` and `execute.py:EXPECTED_VERSION` must be bumped by
+    hand to the same value whenever the upstream package version changes (currently `0.1.15`).
+    The banner's `meta` dict derives from `plugin.yaml` (`hooks.py:PLUGIN_VERSION`). WebUI labels
+    (`dashboard.js versionLabel`, `page.html` h1 tag, the `page-head` meta) are hardcoded — bump
+    them in the same commit. `scripts/check_v22_contract.py` check 4 fails when the five static
+    sites disagree, and warns (without failing) when `plugin.yaml` or the installed package
+    differs — a package upgrade legitimately lands before the static bump. `execute.py` prints a
+    WARN if `plugin.yaml` disagrees with `EXPECTED_VERSION`.
 14. **The plugin does NOT install `vibe-trading-ai`.** `hooks.py` only detects whether the
     package is importable (`_is_vibe_trading_installed`) and logs a one-line INFO; the actual
     `pip install vibe-trading-ai` is documented in README and the user does it. Do not add a
@@ -172,8 +177,8 @@ installed upstream `vibe-trading-ai` via `version_sync` auto-sync, invariant 13)
   None)` returns `None` and the UI shows an empty input. Use the same key list everywhere:
   `mcp_enabled, mcp_command, mcp_args, llm_provider, llm_model, temperature, timeout_seconds,
   tushare_token, finnhub_api_key, alphavantage_api_key, tiingo_api_key, fmp_api_key,
-  fred_api_key, iwencai_key, data_cache, risk_tier, max_drawdown_pct,
-  require_explicit_confirmation`.
+  fred_api_key, iwencai_key, qveris_api_key, qveris_base_url, market_data_order_json,
+  data_cache, risk_tier, max_drawdown_pct, require_explicit_confirmation`.
 - **Per change:** run `python -m py_compile` on every `.py` you touched. Verify the plugin's
   WebUI parses by `import`-stripping `webui/config.html` and `webui/page.html` then running
   them through `new Function(src)`. Keep `default_config.yaml` ↔ `webui/config.html` keys in
@@ -200,6 +205,10 @@ installed upstream `vibe-trading-ai` via `version_sync` auto-sync, invariant 13)
 - **Manifest / version / settings UI surface:** `plugin.yaml`.
 - **Lifecycle hooks (MCP register/unregister):** `hooks.py`.
 - **v2.2 contract regression check:** `scripts/check_v22_contract.py`.
+- **Unit tests:** `tests/test_plugin_internals.py` — plain pytest on the host
+  venv (no A0 runtime needed): version lockstep, the contract checker on real
+  + synthetic trees, `hooks._build_mcp_entry` translation, TTL-cache semantics,
+  and source-contract guards for the runtime-only `api/` modules.
 - **Self-check / maintenance script:** `execute.py` (run from Plugins UI or
   `python /a0/usr/plugins/vibe_trading/execute.py`).
 - **API endpoints (one handler per file):** `api/stats.py` (POST `/api/plugins/vibe_trading/stats`),
@@ -207,8 +216,10 @@ installed upstream `vibe-trading-ai` via `version_sync` auto-sync, invariant 13)
   `api/tools.py` (POST `/api/plugins/vibe_trading/tools`),
   `api/watch.py` (POST `/api/plugins/vibe_trading/watch` — persisted price alerts in
   gitignored `watch_rules.json`; evaluation is on-demand only, never a background worker),
-  `api/portfolio.py` (POST `/api/plugins/vibe_trading/portfolio` — upstream
-  `portfolio_summary` ≥0.1.13 + shared connectors dispatch).
+  `api/portfolio.py` (POST `/api/plugins/vibe_trading/portfolio` — MCP
+  `portfolio_summary` when exposed, upstream-CLI aggregation fallback with
+  `refresh`/`sources` actions (0.1.15+; the tool is registry-only
+  upstream-side and NOT MCP-exposed), + shared connectors dispatch).
 - **Settings UI:** `webui/config.html` (Alpine + `plugin-settings-store`). Its top
   *Plugin pages* grid is the SINGLE entry point to every plugin page — since v0.1.11 there
   is deliberately no sidebar extension (the 5 sidebar buttons collided with the WebUI
@@ -234,7 +245,10 @@ installed upstream `vibe-trading-ai` via `version_sync` auto-sync, invariant 13)
   `mcp_server:main`. The MCP server reads `LANGCHAIN_PROVIDER`, `LLM_MODEL` /
   `LANGCHAIN_MODEL_NAME`, `LANGCHAIN_TEMPERATURE`, `TIMEOUT_SECONDS`, plus data-source tokens
   `TUSHARE_TOKEN`, `FINNHUB_API_KEY`, `ALPHAVANTAGE_API_KEY`, `TIINGO_API_KEY`, `FMP_API_KEY`,
-  `FRED_API_KEY`.
+  `FRED_API_KEY`, `VIBE_TRADING_IWENCAI_KEY`, `QVERIS_API_KEY`, `QVERIS_BASE_URL`,
+  `GILDATA_TOKEN`, `GILDATA_BASE_URL`, and the
+  per-market source-order overrides `MARKET_DATA_ORDER_<MARKET>` (13 markets declared in
+  upstream's env schema; `hooks.py` whitelists exactly those).
 
 ## Verified A0 v2.5 mechanics (don't re-derive — confirm against the LIVE instance; versions move)
 - API dispatch: `helpers/api.py:206-272` resolves `POST /api/plugins/<name>/<handler>` →
@@ -276,3 +290,29 @@ installed upstream `vibe-trading-ai` via `version_sync` auto-sync, invariant 13)
 - Does not modify Agent Zero framework code in `helpers/`, `webui/components/`, or `initialize.py`.
 - Does not expose API keys, host IPs, or local paths in shipped files. `config.json` and
   `.toggle-*` are gitignored.
+
+## The two-venv trap (incident 2026-09-22 — read before any upgrade or health check)
+
+The container has TWO installs of `vibe-trading-ai`:
+
+| Venv | Python | Role |
+|---|---|---|
+| `/opt/venv` | 3.13 | interactive/CLI venv; the one `execute.py` and bare `docker exec` shells resolve |
+| `/opt/venv-a0` | 3.12 | the A0 **app process's** venv — what `hooks.install()` sees on boot |
+
+Consequences, all observed live: a PATH-resolved registration lands on
+whichever venv owns the calling process's PATH; `version_sync` (running in
+the app context) rewrites `plugin.yaml` to the version of the *app's* copy
+— so upgrading only `/opt/venv` leaves the runtime on the old version while
+every in-container check passes. Mitigations in place:
+
+- `config.json` pins `"mcp_command": "/opt/venv/bin/vibe-trading-mcp"`
+  (absolute; `_build_mcp_entry` trusts absolute commands as-is).
+- `/opt/venv-a0` is kept at the same version as `/opt/venv` (both 0.1.15).
+
+**Upgrade rule:** run `pip install -U vibe-trading-ai` in BOTH venvs, then
+restart A0, then verify — in this order — (1) the registered
+`command` in `usr/settings.json`, (2) `plugin.yaml:version`, (3) a stdio
+probe of the REGISTERED binary (not `shutil.which`), (4) the tool count.
+`execute.py`'s probe alone is NOT sufficient evidence post-restart, because
+its `shutil.which` resolves in the exec-shell context, not the app's.

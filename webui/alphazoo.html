@@ -86,6 +86,13 @@
         </tbody>
       </table>
     </div>
+    <p class="vt-meta" style="margin-top: 10px; opacity: 0.7;">
+      Note (upstream 0.1.15+): the Alpha Zoo enforces a NaN contract — alphas with
+      insufficient history return <code>n/a</code> instead of a fabricated value
+      (84 of 462 alphas were affected). Bench numbers can differ from pre-0.1.15
+      runs; that is a correctness fix, not a regression. A residual set of alphas
+      may still emit inside their own declared warm-up window (tracked upstream).
+    </p>
   </div>
 </div>
 <script>

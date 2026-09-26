@@ -31,7 +31,7 @@ if _SCRIPTS not in sys.path:
 
 
 PLUGIN_NAME = "vibe_trading"
-EXPECTED_VERSION = "0.1.14"
+EXPECTED_VERSION = "0.1.15"
 def _print(msg: str) -> None:
     print(msg, flush=True)
 
@@ -125,6 +125,26 @@ def _check_manifest() -> bool:
     return True
 
 
+def _resolve_mcp_command() -> "str | None":
+    """Find the vibe-trading-mcp console script.
+
+    shutil.which() alone fails in bare shells whose PATH omits the venv pip
+    installed into (e.g. `docker exec` runs with only the base image PATH,
+    while the A0 app process extends PATH with /opt/venv/bin). Probing the
+    well-known venv bin dirs keeps the health check and the probe working in
+    both environments, matching hooks._build_mcp_entry's resolver.
+    """
+    import shutil
+    cmd_path = shutil.which("vibe-trading-mcp")
+    if cmd_path:
+        return cmd_path
+    for venv_bin in ("/opt/venv/bin", "/usr/local/bin"):
+        candidate = os.path.join(venv_bin, "vibe-trading-mcp")
+        if os.path.isfile(candidate):
+            return candidate
+    return None
+
+
 def _check_installation() -> dict:
     import shutil
     info = {"vibe_trading_ai_installed": False, "console_script": False, "console_script_path": None}
@@ -134,7 +154,7 @@ def _check_installation() -> dict:
         info["vibe_trading_ai_version"] = md.version("vibe-trading-ai")
     except Exception:
         info["vibe_trading_ai_version"] = None
-    cmd_path = shutil.which("vibe-trading-mcp")
+    cmd_path = _resolve_mcp_command()
     info["console_script"] = cmd_path is not None
     info["console_script_path"] = cmd_path
     if not info["vibe_trading_ai_installed"]:
@@ -169,8 +189,7 @@ def _probe_mcp_server() -> dict:
         return {"probed": False, "error": f"mcp client not importable: {e}"}
 
     async def _run():
-        import shutil
-        cmd = shutil.which("vibe-trading-mcp")
+        cmd = _resolve_mcp_command()
         if not cmd:
             return {"probed": False, "error": "vibe-trading-mcp not on PATH"}
         params = StdioServerParameters(command=cmd, args=[], env=None)

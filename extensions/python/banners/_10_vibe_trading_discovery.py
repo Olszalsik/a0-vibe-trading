@@ -121,7 +121,7 @@ def execute(banners: list, **kwargs):
         "title": "Vibe-Trading research tools are live",
         "description": (
             "54 finance-research MCP tools (backtest, factor analysis, options, "
-            "shadow account, 452 alphas, 29 swarm teams) are now available. "
+            "shadow account, 462 alphas, 30 swarm presets) are now available. "
             "Pick the 'vibe-trader' agent profile to start, or open the "
             "plugin settings to add Tushare / LLM keys."
         ),
